@@ -1,65 +1,85 @@
-import Image from "next/image";
+"use client";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Sparkles, ShieldCheck, Gift } from "lucide-react";
 
-export default function Home() {
+export default function LandingPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-crimson-100">
+      {/* Navigation */}
+      <nav className="flex justify-between items-center px-8 py-6 max-w-7xl mx-auto">
+        <div className="text-2xl font-serif italic font-bold tracking-tight">Spirit of Santa</div>
+        <div className="flex gap-8 items-center text-sm font-medium">
+          <Link href="/login" className="text-slate-500 hover:text-slate-900 transition">Parent Login</Link>
+          <Link href="/register" className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-crimson-600 transition shadow-lg shadow-slate-200">
+            Get Started
+          </Link>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="px-6 pt-20 pb-32 max-w-5xl mx-auto text-center">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          <span className="inline-block px-4 py-1.5 mb-6 text-[10px] font-bold tracking-[0.3em] uppercase bg-crimson-50 text-crimson-700 rounded-full border border-crimson-100">
+            A New Tradition for Modern Families
+          </span>
+          <h1 className="text-6xl md:text-7xl font-serif italic mb-8 tracking-tight">
+            Nurturing kindness through <br />
+            <span className="text-crimson-600">a touch of magic.</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
+            Track behavior with our minimalist Naughty-Nice meter, earn Magic Points through community deeds, and build a wishlist that rewards character.
           </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/register" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform">
+              Start Your Journey
+            </Link>
+            <Link href="/dashboard" className="bg-white border border-slate-200 px-10 py-4 rounded-full font-bold text-lg hover:bg-slate-50 transition-colors">
+              View Demo
+            </Link>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="bg-white py-24 border-y border-slate-100">
+        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-16">
+          <FeatureCard 
+            icon={<ShieldCheck className="text-crimson-500" />}
+            title="Parental Voting"
+            desc="A daily minimalist vote keeps the meter moving. 1 Magic Point equals $1 of Christmas magic."
+          />
+          <FeatureCard 
+            icon={<Sparkles className="text-royal-600" />}
+            title="Good Deed Cards"
+            desc="Physical cards with unique codes for neighbors to scan when your child helps the community."
+          />
+          <FeatureCard 
+            icon={<Gift className="text-crimson-500" />}
+            title="The Curated Shop"
+            desc="Parents add specific toys to the private store. Kids shop with points they've truly earned."
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-12 text-center text-slate-400 text-xs tracking-widest uppercase">
+        &copy; {new Date().getFullYear()} Spirit of Santa &bull; Built on fyht4.com
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, desc }: any) {
+  return (
+    <div className="text-center">
+      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-6">{icon}</div>
+      <h3 className="text-xl font-serif italic mb-3">{title}</h3>
+      <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }

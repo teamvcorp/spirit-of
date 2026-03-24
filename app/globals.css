@@ -12,6 +12,34 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@theme {
+  /* Christmas palette — Crimson (royal red) */
+  --color-crimson-50:  #FFF0F0;
+  --color-crimson-100: #FFD5D5;
+  --color-crimson-200: #FCA5A5;
+  --color-crimson-300: #F87171;
+  --color-crimson-400: #EF4444;
+  --color-crimson-500: #DC2626;
+  --color-crimson-600: #B91C1C;
+  --color-crimson-700: #991B1B;
+
+  /* Royal blue */
+  --color-royal-50:  #EFF6FF;
+  --color-royal-100: #DBEAFE;
+  --color-royal-400: #60A5FA;
+  --color-royal-500: #3B82F6;
+  --color-royal-600: #2563EB;
+  --color-royal-700: #1D4ED8;
+  --color-royal-800: #1E40AF;
+  --color-royal-900: #0F1B4C;
+
+  /* Silver */
+  --color-silver-100: #ECF0F6;
+  --color-silver-200: #D1DAE6;
+  --color-silver-300: #97A8BC;
+  --color-silver-400: #6B7E96;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
