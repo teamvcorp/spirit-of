@@ -19,6 +19,15 @@ export async function POST(req: Request) {
     const pi = event.data.object as Stripe.PaymentIntent;
     const meta = pi.metadata ?? {};
 
+    // Idempotency guard — if we've already handled this PaymentIntent, skip it.
+    // This prevents double-credits when both stripe listen AND a dashboard webhook fire.
+    try {
+      await prisma.processedEvent.create({ data: { id: pi.id } });
+    } catch {
+      // Unique constraint violation — already processed
+      return new Response('Already processed', { status: 200 });
+    }
+
     if (meta.type === 'PHYSICAL_CARDS') {
       const email = meta.recipientEmail || pi.receipt_email;
       if (email) await sendOrderConfirmation(email, '20x Physical Magic Cards');
@@ -26,8 +35,7 @@ export async function POST(req: Request) {
 
     if (meta.type === 'WALLET_TOPUP') {
       const userId = meta.userId;
-      // Use pi.amount (authoritative Stripe amount) not metadata to prevent tampering
-      const amountInCents = pi.amount;
+      const amountInCents = pi.amount; // authoritative — never trust client-sent metadata
       if (userId && amountInCents > 0) {
         await prisma.user.update({
           where: { id: userId },

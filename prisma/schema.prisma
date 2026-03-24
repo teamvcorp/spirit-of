@@ -73,3 +73,9 @@ model GoodDeed {
   childId        String
   child          Child     @relation(fields: [childId], references: [id])
 }
+
+// Idempotency log — stores PaymentIntent IDs that have already been processed
+model ProcessedEvent {
+  id        String   @id  // Stripe PaymentIntent ID (pi_...)
+  createdAt DateTime @default(now())
+}
