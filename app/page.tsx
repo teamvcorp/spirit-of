@@ -38,9 +38,6 @@ export default function LandingPage() {
             <Link href="/register" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform">
               Start Your Journey
             </Link>
-            <Link href="/dashboard" className="bg-white border border-slate-200 px-10 py-4 rounded-full font-bold text-lg hover:bg-slate-50 transition-colors">
-              View Demo
-            </Link>
           </div>
         </motion.div>
       </section>
