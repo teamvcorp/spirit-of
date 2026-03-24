@@ -32,7 +32,7 @@ export default function LandingPage() {
             <span className="text-crimson-600">a touch of magic.</span>
           </h1>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Track behavior with our minimalist Naughty-Nice meter, earn Magic Points through community deeds, and build a wishlist that rewards character.
+            Track behavior with the Naughty-Nice meter, earn Magic Points through good deeds, and build a wishlist that rewards character.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform">
@@ -48,7 +48,7 @@ export default function LandingPage() {
           <FeatureCard 
             icon={<ShieldCheck className="text-crimson-500" />}
             title="Parental Voting"
-            desc="A daily minimalist vote keeps the meter moving. 1 Magic Point equals $1 of Christmas magic."
+            desc="A daily vote keeps the Naughty-Nice meter moving. Earn enough Magic Points and Christmas wishes come true."
           />
           <FeatureCard 
             icon={<Sparkles className="text-royal-600" />}
@@ -57,8 +57,8 @@ export default function LandingPage() {
           />
           <FeatureCard 
             icon={<Gift className="text-crimson-500" />}
-            title="The Curated Shop"
-            desc="Parents add specific toys to the private store. Kids shop with points they've truly earned."
+            title="Santa's Workshop"
+            desc="The elves curate a special shop of gifts. Kids browse and add their favourites to a wishlist using the Magic Points they've earned."
           />
         </div>
       </section>
