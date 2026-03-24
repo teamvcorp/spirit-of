@@ -28,6 +28,7 @@ export default function ChildDashboard() {
   const [toys, setToys] = useState<Toy[]>([]);
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"shop" | "wishlist">("shop");
+  const [isChristmasLocked, setIsChristmasLocked] = useState(false);
 
   // PIN modal state
   const [showPinModal, setShowPinModal] = useState(false);
@@ -47,6 +48,7 @@ export default function ChildDashboard() {
           setHasPin(data.hasPin);
           setCanShop(data.canShopToday);
           setWishlistIds(data.wishlistIds ?? []);
+          setIsChristmasLocked(data.isChristmasLocked ?? false);
         }
         setLoading(false);
       });
@@ -84,6 +86,7 @@ export default function ChildDashboard() {
   };
 
   const handleToggleWishlist = async (toyId: string, add: boolean) => {
+    if (isChristmasLocked) return;
     // Optimistic update
     setWishlistIds((prev) => add ? [...prev, toyId] : prev.filter((id) => id !== toyId));
     await toggleWishlistItem(childId, toyId, add);
@@ -224,6 +227,12 @@ export default function ChildDashboard() {
             </motion.div>
           ) : (
             <motion.div key="wishlist" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+              {isChristmasLocked && (
+                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-3xl px-8 py-5 mb-8 text-sm font-semibold">
+                  <span className="text-2xl">🎁</span>
+                  <span>Your wish list has been sent to Santa! No more changes until after Christmas.</span>
+                </div>
+              )}
               {wishlistIds.length === 0 ? (
                 <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
                   <p className="text-slate-500 italic font-serif">Your wish list is empty — add toys from the shop!</p>
@@ -238,12 +247,14 @@ export default function ChildDashboard() {
                       <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
                       <div className="flex justify-between items-center mt-2">
                         <span className="text-crimson-600 font-semibold tracking-tight">{toy.price} Points</span>
-                        <button
-                          onClick={() => handleToggleWishlist(toy.id, false)}
-                          className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition"
-                        >
-                          <X size={12} /> Remove
-                        </button>
+                        {!isChristmasLocked && (
+                          <button
+                            onClick={() => handleToggleWishlist(toy.id, false)}
+                            className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition"
+                          >
+                            <X size={12} /> Remove
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

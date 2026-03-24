@@ -29,24 +29,12 @@ export async function POST(req: Request) {
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    line_items: [{
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: 'Magic Points Wallet Top-Up',
-          description: `Add $${amountInCents / 100} of Magic Points to your wallet`,
-        },
-        unit_amount: amountInCents,
-      },
-      quantity: 1,
-    }],
-    mode: 'payment',
-    success_url: `${process.env.NEXT_PUBLIC_DOMAIN}/parent?wallet=funded`,
-    cancel_url: `${process.env.NEXT_PUBLIC_DOMAIN}/parent?wallet=canceled`,
-    customer_email: session.user.email,
-    metadata: { userId: user.id, type: 'WALLET_TOPUP', amountInCents: String(amountInCents) },
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: 'usd',
+    receipt_email: session.user.email,
+    metadata: { type: 'WALLET_TOPUP', userId: user.id, amountInCents: String(amountInCents) },
   });
 
-  return NextResponse.json({ url: checkoutSession.url });
+  return NextResponse.json({ clientSecret: paymentIntent.client_secret });
 }

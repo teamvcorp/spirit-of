@@ -16,14 +16,18 @@ datasource db {
 // schema.prisma
 
 model User { // The Parent
-  id             String    @id @default(cuid())
-  email          String    @unique
-  password       String    // Hashed
-  parentPin      String?   // 4-digit PIN to protect admin from child dashboard
-  stripeId       String?   // For payments
-  walletBalance  Int       @default(0) // in cents; 1 magic point = 100 cents = $1.00
-  children       Child[]
-  createdAt      DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  password           String    // Hashed
+  parentPin          String?   // 4-digit PIN to protect admin from child dashboard
+  stripeId           String?   // For payments
+  walletBalance      Int       @default(0) // in cents; 1 magic point = 100 cents = $1.00
+  referralCode       String?   @unique     // Family-level code for /magic page
+  shippingAddress    String?   // Full address for Christmas delivery
+  isChristmasLocked  Boolean   @default(false) // true after Finalize; unlocks Dec 26
+  finalizedAt        DateTime? // timestamp of finalization
+  children           Child[]
+  createdAt          DateTime  @default(now())
 }
 
 model Child {

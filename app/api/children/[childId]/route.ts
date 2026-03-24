@@ -23,7 +23,7 @@ export async function GET(
           where: { date: { gte: yearStart } },
           orderBy: { date: "desc" },
         },
-        parent: { select: { parentPin: true } },
+        parent: { select: { parentPin: true, isChristmasLocked: true } },
         wishlist: { select: { id: true } },
       },
     }),
@@ -46,5 +46,6 @@ export async function GET(
     hasPin: !!parent?.parentPin,
     canShopToday: !!todayVote,
     wishlistIds: wishlist.map((t) => t.id),
+    isChristmasLocked: parent?.isChristmasLocked ?? false,
   });
 }

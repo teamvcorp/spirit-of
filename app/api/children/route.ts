@@ -33,5 +33,8 @@ export async function GET() {
     children: user?.children ?? [],
     hasPin: !!user?.parentPin,
     walletBalance: user?.walletBalance ?? 0,
+    isChristmasLocked: user?.isChristmasLocked ?? false,
+    shippingAddress: user?.shippingAddress ?? '',
+    referralCode: user?.referralCode ?? null,
   });
 }

@@ -14,24 +14,12 @@ export async function POST(req: Request) {
     // body is optional
   }
 
-  const session = await stripe.checkout.sessions.create({
-    line_items: [{
-      price_data: {
-        currency: 'usd',
-        product_data: { 
-          name: 'Pack of 20 Printed Magic Referral Cards',
-          description: 'High-quality gold-foil cards delivered to your door.'
-        },
-        unit_amount: 1000, // $10.00
-      },
-      quantity: 1,
-    }],
-    mode: 'payment',
-    success_url: `${process.env.NEXT_PUBLIC_DOMAIN}/parent?success=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_DOMAIN}/parent?canceled=true`,
-    customer_email: email ?? undefined,
-    metadata: { userId: userId ?? '', type: 'PHYSICAL_CARDS' }
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: 1000, // $10.00
+    currency: 'usd',
+    receipt_email: email ?? undefined,
+    metadata: { type: 'PHYSICAL_CARDS', userId: userId ?? '', recipientEmail: email ?? '' },
   });
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ clientSecret: paymentIntent.client_secret });
 }
