@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#B91C1C"/>
+  <!-- Santa hat body -->
+  <path d="M160 300 L256 100 L352 300 Z" fill="#DC2626"/>
+  <!-- Hat brim -->
+  <rect x="130" y="290" width="252" height="48" rx="24" fill="#F8FAFC"/>
+  <!-- Pom-pom -->
+  <circle cx="256" cy="100" r="28" fill="#F8FAFC"/>
+  <!-- Sparkle star -->
+  <path d="M256 220 L262 238 L281 238 L266 249 L272 268 L256 257 L240 268 L246 249 L231 238 L250 238 Z"
+        fill="#FCD34D"/>
+</svg>
