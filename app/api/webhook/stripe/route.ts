@@ -17,13 +17,20 @@ export async function POST(req: Request) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    
+
     if (session.metadata?.type === 'PHYSICAL_CARDS') {
-      // Trigger the emails!
-      await sendOrderConfirmation(session.customer_email!, "20x Physical Magic Cards");
-      
-      // Update DB if necessary
-      console.log("Order confirmed for:", session.customer_email);
+      await sendOrderConfirmation(session.customer_email!, '20x Physical Magic Cards');
+    }
+
+    if (session.metadata?.type === 'WALLET_TOPUP') {
+      const userId = session.metadata.userId;
+      const amountInCents = parseInt(session.metadata.amountInCents ?? '0', 10);
+      if (userId && amountInCents > 0) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { walletBalance: { increment: amountInCents } },
+        });
+      }
     }
   }
 

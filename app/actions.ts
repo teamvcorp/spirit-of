@@ -5,6 +5,19 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
+  // No auth check needed — child dashboard is already scoped by childId,
+  // and wishlist is just a preference (no payment involved).
+  await prisma.child.update({
+    where: { id: childId },
+    data: {
+      wishlist: add
+        ? { connect: { id: toyId } }
+        : { disconnect: { id: toyId } },
+    },
+  });
+}
+
 export async function submitDailyVote(childId: string, isPositive: boolean) {
   // Normalize to midnight UTC so one-per-day is enforced correctly
   const today = new Date();
@@ -78,6 +91,41 @@ export async function setParentPin(pin: string) {
     where: { email: session.user.email },
     data: { parentPin: pin },
   });
+
+  return { success: true };
+}
+
+export async function sendMagicPoints(childId: string, points: number) {
+  if (!Number.isInteger(points) || points < 1 || points > 1000) {
+    return { error: "Invalid point amount" };
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return { error: "Unauthorized" };
+
+  const costInCents = points * 100;
+
+  const parent = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    include: { children: { where: { id: childId } } },
+  });
+
+  if (!parent) return { error: "Parent not found" };
+  if (parent.children.length === 0) return { error: "Child not found" };
+  if (parent.walletBalance < costInCents) {
+    return { error: "Insufficient wallet balance" };
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: parent.id },
+      data: { walletBalance: { decrement: costInCents } },
+    }),
+    prisma.child.update({
+      where: { id: childId },
+      data: { magicPoints: { increment: points } },
+    }),
+  ]);
 
   return { success: true };
 }

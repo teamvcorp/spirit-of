@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import BehaviorMeter from "@/components/BehaviorMeter";
 import ToyGrid from "@/components/ToyGrid";
 import { getMeterStats, isShopLocked } from "@/lib/santa-logic";
-import { Lock, X } from "lucide-react";
+import { toggleWishlistItem } from "@/app/actions";
+import { Lock, X, ShoppingBag, Heart } from "lucide-react";
 
 type Toy = { id: string; name: string; price: number; image: string };
 
@@ -24,6 +26,8 @@ export default function ChildDashboard() {
   const [hasPin, setHasPin] = useState(false);
   const [canShop, setCanShop] = useState(false);
   const [toys, setToys] = useState<Toy[]>([]);
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"shop" | "wishlist">("shop");
 
   // PIN modal state
   const [showPinModal, setShowPinModal] = useState(false);
@@ -42,6 +46,7 @@ export default function ChildDashboard() {
           setChild(data.child);
           setHasPin(data.hasPin);
           setCanShop(data.canShopToday);
+          setWishlistIds(data.wishlistIds ?? []);
         }
         setLoading(false);
       });
@@ -76,6 +81,12 @@ export default function ChildDashboard() {
       setPinError(true);
       setPin("");
     }
+  };
+
+  const handleToggleWishlist = async (toyId: string, add: boolean) => {
+    // Optimistic update
+    setWishlistIds((prev) => add ? [...prev, toyId] : prev.filter((id) => id !== toyId));
+    await toggleWishlistItem(childId, toyId, add);
   };
 
   if (loading) {
@@ -169,13 +180,78 @@ export default function ChildDashboard() {
       </section>
 
       <section className="max-w-6xl mx-auto">
-        <h2 className="text-2xl font-serif mb-8 italic">The Toy Shop</h2>
-        <ToyGrid
-          toys={toys}
-          points={Math.round(child.magicPoints)}
-          isLocked={shopLocked}
-          canShop={canShop}
-        />
+        {/* Tab toggle */}
+        <div className="flex items-center gap-2 mb-8">
+          <button
+            onClick={() => setActiveTab("shop")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all ${
+              activeTab === "shop"
+                ? "bg-slate-900 text-white shadow-lg"
+                : "bg-white text-slate-400 hover:text-slate-700 border border-slate-100"
+            }`}
+          >
+            <ShoppingBag size={15} /> Toy Shop
+          </button>
+          <button
+            onClick={() => setActiveTab("wishlist")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all ${
+              activeTab === "wishlist"
+                ? "bg-crimson-600 text-white shadow-lg"
+                : "bg-white text-slate-400 hover:text-slate-700 border border-slate-100"
+            }`}
+          >
+            <Heart size={15} className={activeTab === "wishlist" ? "fill-white" : ""} />
+            My Wish List
+            {wishlistIds.length > 0 && (
+              <span className={`ml-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "wishlist" ? "bg-white/20" : "bg-crimson-100 text-crimson-600"}`}>
+                {wishlistIds.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {activeTab === "shop" ? (
+            <motion.div key="shop" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+              <ToyGrid
+                toys={toys}
+                points={Math.round(child.magicPoints)}
+                isLocked={shopLocked}
+                canShop={canShop}
+                wishlistIds={wishlistIds}
+                onToggleWishlist={handleToggleWishlist}
+              />
+            </motion.div>
+          ) : (
+            <motion.div key="wishlist" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+              {wishlistIds.length === 0 ? (
+                <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                  <p className="text-slate-500 italic font-serif">Your wish list is empty — add toys from the shop!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {toys.filter((t) => wishlistIds.includes(t.id)).map((toy) => (
+                    <div key={toy.id} className="bg-white p-6 rounded-4xl border border-crimson-200 ring-2 ring-crimson-100 shadow-sm">
+                      <div className="aspect-square bg-slate-50 rounded-2xl mb-4 flex items-center justify-center text-4xl">
+                        🎁
+                      </div>
+                      <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-crimson-600 font-semibold tracking-tight">{toy.price} Points</span>
+                        <button
+                          onClick={() => handleToggleWishlist(toy.id, false)}
+                          className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition"
+                        >
+                          <X size={12} /> Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
     </main>
   );

@@ -32,5 +32,6 @@ export async function GET() {
   return NextResponse.json({
     children: user?.children ?? [],
     hasPin: !!user?.parentPin,
+    walletBalance: user?.walletBalance ?? 0,
   });
 }

@@ -21,6 +21,7 @@ model User { // The Parent
   password       String    // Hashed
   parentPin      String?   // 4-digit PIN to protect admin from child dashboard
   stripeId       String?   // For payments
+  walletBalance  Int       @default(0) // in cents; 1 magic point = 100 cents = $1.00
   children       Child[]
   createdAt      DateTime  @default(now())
 }

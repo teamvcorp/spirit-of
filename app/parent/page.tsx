@@ -6,11 +6,11 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Users, CreditCard, Plus, CheckCircle2,
-  XCircle, Mail, ExternalLink, LayoutDashboard, Lock, X
+  XCircle, Mail, ExternalLink, LayoutDashboard, Lock, X, Sparkles, Wallet
 } from "lucide-react";
 import Link from "next/link";
 import AddChildModal from "@/components/AddChildModal";
-import { submitDailyVote, setParentPin } from "@/app/actions";
+import { submitDailyVote, setParentPin, sendMagicPoints } from "@/app/actions";
 import { getMeterStats } from "@/lib/santa-logic";
 
 type DbChild = {
@@ -31,6 +31,11 @@ export default function ParentPortal() {
   const [confirmPin, setConfirmPin] = useState("");
   const [pinSetupError, setPinSetupError] = useState("");
   const [savingPin, setSavingPin] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0); // in cents
+  const [sendingPoints, setSendingPoints] = useState<string | null>(null); // childId being sent to
+  const [pointsInput, setPointsInput] = useState("");
+  const [sendError, setSendError] = useState("");
+  const [toppingUp, setToppingUp] = useState(false);
   const router = useRouter();
 
   async function fetchChildren() {
@@ -40,6 +45,7 @@ export default function ParentPortal() {
       const data = await res.json();
       setKids(data.children);
       setHasPin(!!data.hasPin);
+      setWalletBalance(data.walletBalance ?? 0);
       if (!data.hasPin) setShowPinSetup(true);
     }
     setLoading(false);
@@ -51,6 +57,7 @@ export default function ParentPortal() {
       const data = await res.json();
       setKids(data.children);
       setHasPin(!!data.hasPin);
+      setWalletBalance(data.walletBalance ?? 0);
       if (!data.hasPin) setShowPinSetup(true);
       setLoading(false);
     });
@@ -71,6 +78,35 @@ export default function ParentPortal() {
   const handleVote = async (childId: string, isPositive: boolean) => {
     await submitDailyVote(childId, isPositive);
     fetchChildren();
+  };
+
+  const handleSendPoints = async (childId: string) => {
+    setSendError("");
+    const points = parseInt(pointsInput, 10);
+    if (!points || points < 1) { setSendError("Enter a valid amount."); return; }
+    if (points * 100 > walletBalance) { setSendError("Not enough wallet balance."); return; }
+    const result = await sendMagicPoints(childId, points);
+    if (result?.error) { setSendError(result.error); return; }
+    setSendingPoints(null);
+    setPointsInput("");
+    fetchChildren();
+  };
+
+  const handleTopUp = async (amountInCents: number) => {
+    setToppingUp(true);
+    try {
+      const res = await fetch("/api/checkout/topup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amountInCents }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error("Wallet top-up error:", err);
+    } finally {
+      setToppingUp(false);
+    }
   };
 
   const handleOrderCards = async () => {
@@ -145,9 +181,17 @@ export default function ParentPortal() {
         </div>
 
         <div className="space-y-4">
-          <div className="p-4 bg-slate-50 rounded-2xl">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Verified Domain</p>
-            <p className="text-xs font-medium text-slate-600">fyht4.com</p>
+          <div className="p-4 bg-crimson-50 rounded-2xl">
+            <p className="text-[10px] text-crimson-400 font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+              <Wallet size={10} /> Wallet Balance
+            </p>
+            <p className="text-lg font-bold text-crimson-700">${(walletBalance / 100).toFixed(2)}</p>
+            <button
+              onClick={() => setActiveTab("billing")}
+              className="text-[10px] text-crimson-400 hover:text-crimson-600 mt-1 font-semibold transition"
+            >
+              Add funds →
+            </button>
           </div>
           <Link href="/dashboard" className="text-xs text-slate-400 hover:text-royal-700 transition font-medium flex items-center gap-2">
             <LayoutDashboard size={13} /> Switch to Dashboards
@@ -203,8 +247,9 @@ export default function ParentPortal() {
                     const todayIsNice = todayVote?.isPositive;
                     const yearStatus = percentage >= 50 ? "Nice" : "Naughty";
                     return (
-                      <div key={child.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm flex justify-between items-center group hover:border-crimson-200 transition-colors">
-                        <div className="flex gap-8 items-center">
+                      <div key={child.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm group hover:border-crimson-200 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div className="flex gap-8 items-center">
                           <div className="w-16 h-16 bg-silver-100 rounded-full flex items-center justify-center text-2xl font-serif italic text-crimson-600 border border-crimson-100">
                             {child.name[0]}
                           </div>
@@ -230,7 +275,7 @@ export default function ParentPortal() {
                           </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 items-center">
                           <button
                             onClick={() => handleVote(child.id, true)}
                             disabled={votedToday}
@@ -257,7 +302,22 @@ export default function ParentPortal() {
                           >
                             <XCircle size={16} /> Naughty
                           </button>
-                          <div className="h-10 w-px bg-slate-100 mx-2" />
+                          <div className="h-10 w-px bg-slate-100 mx-1" />
+                          <button
+                            onClick={() => {
+                              setSendingPoints(sendingPoints === child.id ? null : child.id);
+                              setPointsInput("");
+                              setSendError("");
+                            }}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                              sendingPoints === child.id
+                                ? "bg-amber-100 text-amber-700 ring-2 ring-amber-300"
+                                : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                            }`}
+                          >
+                            <Sparkles size={16} /> Send Points
+                          </button>
+                          <div className="h-10 w-px bg-slate-100 mx-1" />
                           <Link
                             href={`/dashboard/${child.id}`}
                             target="_blank"
@@ -267,6 +327,76 @@ export default function ParentPortal() {
                             <LayoutDashboard size={20} />
                           </Link>
                         </div>
+                        </div>
+
+                        {/* SEND POINTS INLINE PANEL */}
+                        <AnimatePresence>
+                          {sendingPoints === child.id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                              animate={{ opacity: 1, height: "auto", marginTop: 24 }}
+                              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="border-t border-slate-100 pt-6 flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Send Magic Points to {child.name}</p>
+                                    <p className="text-xs text-slate-400">
+                                      Each point costs <span className="font-bold text-slate-600">$1.00</span> from your wallet.
+                                      Balance: <span className="font-bold text-crimson-600">${(walletBalance / 100).toFixed(2)}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex gap-2">
+                                    {[5, 10, 25, 50].map((preset) => (
+                                      <button
+                                        key={preset}
+                                        onClick={() => setPointsInput(String(preset))}
+                                        disabled={preset * 100 > walletBalance}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                                          pointsInput === String(preset)
+                                            ? "bg-amber-500 text-white"
+                                            : preset * 100 > walletBalance
+                                            ? "bg-slate-50 text-slate-300 cursor-not-allowed"
+                                            : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                        }`}
+                                      >
+                                        {preset} pts
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={Math.floor(walletBalance / 100)}
+                                    value={pointsInput}
+                                    onChange={(e) => { setPointsInput(e.target.value); setSendError(""); }}
+                                    placeholder="Custom"
+                                    className="w-24 px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-amber-400 transition text-center"
+                                  />
+                                  <button
+                                    onClick={() => handleSendPoints(child.id)}
+                                    disabled={!pointsInput || parseInt(pointsInput) < 1 || parseInt(pointsInput) * 100 > walletBalance}
+                                    className="flex items-center gap-2 bg-amber-500 text-white px-6 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition disabled:opacity-40"
+                                  >
+                                    <Sparkles size={14} /> Gift {pointsInput ? `${pointsInput} pts` : ""}
+                                  </button>
+                                  {walletBalance === 0 && (
+                                    <button
+                                      onClick={() => setActiveTab("billing")}
+                                      className="text-xs text-crimson-600 font-bold hover:underline"
+                                    >
+                                      Add funds first →
+                                    </button>
+                                  )}
+                                </div>
+                                {sendError && <p className="text-red-500 text-xs">{sendError}</p>}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}
@@ -305,6 +435,36 @@ export default function ParentPortal() {
           {activeTab === "billing" && (
             <motion.div key="billing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h1 className="text-4xl font-serif italic mb-12">Billing & Account</h1>
+
+              {/* WALLET */}
+              <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-10 mb-8">
+                <div className="flex justify-between items-start mb-8 pb-8 border-b border-slate-50">
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <Wallet size={12} /> Magic Points Wallet
+                    </p>
+                    <p className="text-4xl font-serif font-bold text-crimson-700">${(walletBalance / 100).toFixed(2)}</p>
+                    <p className="text-xs text-slate-400 mt-1">1 Magic Point = $1.00 · funds points you send to children</p>
+                  </div>
+                </div>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-4">Add Funds</p>
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  {[1000, 2500, 5000, 10000].map((cents) => (
+                    <button
+                      key={cents}
+                      onClick={() => handleTopUp(cents)}
+                      disabled={toppingUp}
+                      className="flex flex-col items-center justify-center bg-crimson-50 hover:bg-crimson-100 text-crimson-700 rounded-2xl py-5 px-3 font-bold transition disabled:opacity-50"
+                    >
+                      <span className="text-lg">${cents / 100}</span>
+                      <span className="text-[10px] font-medium text-crimson-400 mt-0.5">{cents / 100} pts</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-300 text-center">Secured by Stripe · funds are non-refundable once allocated to a child</p>
+              </div>
+
+              {/* SUBSCRIPTION */}
               <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-8 pb-8 border-b border-slate-50">
                   <div>

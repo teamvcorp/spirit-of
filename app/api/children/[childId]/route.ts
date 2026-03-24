@@ -24,6 +24,7 @@ export async function GET(
           orderBy: { date: "desc" },
         },
         parent: { select: { parentPin: true } },
+        wishlist: { select: { id: true } },
       },
     }),
     prisma.dailyVote.findFirst({
@@ -39,10 +40,11 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { parent, ...childData } = child;
+  const { parent, wishlist, ...childData } = child;
   return NextResponse.json({
     child: childData,
     hasPin: !!parent?.parentPin,
     canShopToday: !!todayVote,
+    wishlistIds: wishlist.map((t) => t.id),
   });
 }
