@@ -26,7 +26,8 @@ export async function POST(req: Request) {
 
     if (meta.type === 'WALLET_TOPUP') {
       const userId = meta.userId;
-      const amountInCents = parseInt(meta.amountInCents ?? '0', 10);
+      // Use pi.amount (authoritative Stripe amount) not metadata to prevent tampering
+      const amountInCents = pi.amount;
       if (userId && amountInCents > 0) {
         await prisma.user.update({
           where: { id: userId },

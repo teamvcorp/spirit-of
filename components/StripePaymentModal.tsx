@@ -99,41 +99,46 @@ export default function StripePaymentModal({
           initial={{ scale: 0.93, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.93, opacity: 0 }}
-          className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative"
+          className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative flex flex-col"
+          style={{ maxHeight: "90vh" }}
         >
-          <button
-            onClick={onClose}
-            className="absolute top-8 right-8 text-slate-400 hover:text-slate-900"
-          >
-            <X size={20} />
-          </button>
+          {/* Fixed header */}
+          <div className="flex-shrink-0 px-10 pt-10 pb-4">
+            <button
+              onClick={onClose}
+              className="absolute top-8 right-8 text-slate-400 hover:text-slate-900"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-2xl font-serif italic mb-1">{title}</h2>
+            {description && (
+              <p className="text-slate-400 text-sm">{description}</p>
+            )}
+          </div>
 
-          <h2 className="text-2xl font-serif italic mb-1">{title}</h2>
-          {description && (
-            <p className="text-slate-400 text-sm mb-6">{description}</p>
-          )}
-          {!description && <div className="mb-6" />}
-
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: "stripe",
-                variables: {
-                  colorPrimary: "#c0392b",
-                  borderRadius: "12px",
-                  fontFamily: "inherit",
+          {/* Scrollable payment content */}
+          <div className="flex-1 overflow-y-auto px-10 pb-10">
+            <Elements
+              stripe={stripePromise}
+              options={{
+                clientSecret,
+                appearance: {
+                  theme: "stripe",
+                  variables: {
+                    colorPrimary: "#c0392b",
+                    borderRadius: "12px",
+                    fontFamily: "inherit",
+                  },
                 },
-              },
-            }}
-          >
-            <CheckoutForm
-              label={submitLabel}
-              onSuccess={onSuccess}
-              onClose={onClose}
-            />
-          </Elements>
+              }}
+            >
+              <CheckoutForm
+                label={submitLabel}
+                onSuccess={onSuccess}
+                onClose={onClose}
+              />
+            </Elements>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

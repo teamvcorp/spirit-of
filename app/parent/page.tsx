@@ -801,7 +801,7 @@ export default function ParentPortal() {
                     <button
                       key={cents}
                       onClick={() => handleTopUp(cents)}
-                      disabled={toppingUp}
+                      disabled={toppingUp || !!stripeModal}
                       className="flex flex-col items-center justify-center bg-crimson-50 hover:bg-crimson-100 text-crimson-700 rounded-2xl py-5 px-3 font-bold transition disabled:opacity-50"
                     >
                       <span className="text-lg">${cents / 100}</span>
