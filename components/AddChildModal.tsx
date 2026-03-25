@@ -6,6 +6,7 @@ import StripePaymentModal from "@/components/StripePaymentModal";
 
 export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
   const [name, setName] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -35,10 +36,13 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
       const res = await fetch("/api/checkout/child-registration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ childName: trimmed }),
+        body: JSON.stringify({ childName: trimmed, promoCode: promoCode.trim() || undefined }),
       });
       const data = await res.json();
-      if (data.clientSecret) {
+      if (data.success) {
+        onClose();
+        onSuccess?.();
+      } else if (data.clientSecret) {
         setClientSecret(data.clientSecret);
       } else {
         setError(data.error ?? "Something went wrong.");
@@ -71,6 +75,12 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Child's name or nickname"
+            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-gold-400 mb-4"
+          />
+          <input
+            value={promoCode}
+            onChange={(e) => { setPromoCode(e.target.value); setError(""); }}
+            placeholder="Promo code (optional)"
             className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-gold-400 mb-4"
           />
           {error && <p className="text-red-500 text-xs mb-3">{error}</p>}

@@ -27,6 +27,7 @@ model User { // The Parent
   shippingAddress    String?   // Full address for Christmas delivery
   isChristmasLocked  Boolean   @default(false) // true after Finalize; unlocks Dec 26
   finalizedAt        DateTime? // timestamp of finalization
+  usedFreeChildPromo Boolean   @default(false) // one-time promo: first child free
   children           Child[]
   createdAt          DateTime  @default(now())
 }

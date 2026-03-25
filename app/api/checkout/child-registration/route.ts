@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { childName } = await req.json();
+  const { childName, promoCode } = await req.json();
   const trimmedName = (childName ?? "").trim();
   if (!trimmedName) {
     return NextResponse.json({ error: "Child name is required" }, { status: 400 });
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   const parent = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { id: true, email: true },
+    select: { id: true, email: true, usedFreeChildPromo: true },
   });
   if (!parent) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -34,6 +34,18 @@ export async function POST(req: Request) {
     return NextResponse.json({
       error: `You already have a child named "${trimmedName}". If they share a name, enter a nickname instead (e.g. "${trimmedName} Jr" or "${trimmedName}-Bear").`,
     }, { status: 400 });
+  }
+
+  // One-time promo: bypass the $5 fee
+  if ((promoCode ?? "").trim().toLowerCase() === "1freechild") {
+    if (parent.usedFreeChildPromo) {
+      return NextResponse.json({ error: "This promo code has already been used by your family." }, { status: 400 });
+    }
+    await prisma.$transaction([
+      prisma.child.create({ data: { name: trimmedName, parentId: parent.id, magicPoints: 0 } }),
+      prisma.user.update({ where: { id: parent.id }, data: { usedFreeChildPromo: true } }),
+    ]);
+    return NextResponse.json({ success: true });
   }
 
   const paymentIntent = await stripe.paymentIntents.create({
