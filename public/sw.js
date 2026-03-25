@@ -18,6 +18,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // Only handle http/https — chrome-extension:// and others crash the Cache API
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
   // Always bypass cache for API routes and non-GET requests
   if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
