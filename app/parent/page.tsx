@@ -222,14 +222,13 @@ export default function ParentPortal() {
     }
   };
 
-  // const isFinalizeVisible = (() => {
-  //   const now = new Date();
-  //   const month = now.getMonth(); // 0-indexed, 11 = December
-  //   const day = now.getDate();
-  //   // Show Dec 1 through Dec 25; hide Dec 26+ (Christmas is over)
-  //   return (month === 11 && day >= 1 && day <= 25);
-  // })();
-const isFinalizeVisible = process.env.NEXT_PUBLIC_FORCE_FINALIZE === 'true' || (month === 11 && day >= 1 && day <= 25);
+  const isFinalizeVisible = (() => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-indexed, 11 = December
+    const day = now.getDate();
+    // Show Dec 1 through Dec 25; hide Dec 26+ (Christmas is over)
+    return (month === 11 && day >= 1 && day <= 25);
+  })();
 
   const handleOpenFinalize = async () => {
     setFinalizeError("");
