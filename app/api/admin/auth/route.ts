@@ -8,7 +8,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { password } = await req.json();
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* sendBeacon may send empty body */ }
+
+  // sendBeacon logout — called on tab/window close
+  if (body.logout === true) {
+    const store = await cookies();
+    store.delete(ADMIN_COOKIE);
+    return NextResponse.json({ ok: true });
+  }
+
+  const { password } = body;
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
   if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {

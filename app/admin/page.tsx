@@ -38,6 +38,18 @@ export default function AdminCMS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-logout when the tab/window is closed or the user navigates away
+  useEffect(() => {
+    const logout = () => {
+      navigator.sendBeacon(
+        "/api/admin/auth",
+        new Blob([JSON.stringify({ logout: true })], { type: "application/json" })
+      );
+    };
+    window.addEventListener("beforeunload", logout);
+    return () => window.removeEventListener("beforeunload", logout);
+  }, []);
+
   const loadToys = async () => {
     setToysLoading(true);
     const r = await fetch("/api/toys");
