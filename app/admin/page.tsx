@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, LogOut, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check } from "lucide-react";
 
 type Toy = { id: string; name: string; description: string; price: number; image: string };
+type User = { id: string; email: string; createdAt: string; _count: { children: number } };
 
 export default function AdminCMS() {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -22,10 +23,18 @@ export default function AdminCMS() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<'toys' | 'users'>('toys');
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [resettingUser, setResettingUser] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
+  const [copiedUser, setCopiedUser] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/admin/auth")
       .then((r) => r.json())
-      .then((d) => { setAuthed(d.ok); if (d.ok) loadToys(); });
+      .then((d) => { setAuthed(d.ok); if (d.ok) { loadToys(); loadUsers(); } });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -56,6 +65,8 @@ export default function AdminCMS() {
     await fetch("/api/admin/auth", { method: "DELETE" });
     setAuthed(false);
     setToys([]);
+    setUsers([]);
+    setTempPasswords({});
   };
 
   const handleAddToy = async (e: React.FormEvent) => {
@@ -82,6 +93,40 @@ export default function AdminCMS() {
     await fetch(`/api/toys/${toyId}`, { method: "DELETE" });
     setDeleting(null);
     loadToys();
+  };
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    const r = await fetch("/api/admin/users");
+    const d = await r.json();
+    if (d.users) setUsers(d.users);
+    setUsersLoading(false);
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!confirm("Reset this user's password? They will need to use the temporary password to log in.")) return;
+    setResettingUser(userId);
+    const r = await fetch(`/api/admin/users/${userId}`, { method: "PATCH" });
+    const d = await r.json();
+    setResettingUser(null);
+    if (d.tempPassword) {
+      setTempPasswords((prev) => ({ ...prev, [userId]: d.tempPassword }));
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Delete account for ${email}? This will also delete all their children and data. This cannot be undone.`)) return;
+    setDeletingUser(userId);
+    await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+    setDeletingUser(null);
+    setTempPasswords((prev) => { const next = { ...prev }; delete next[userId]; return next; });
+    loadUsers();
+  };
+
+  const copyTemp = (userId: string, pw: string) => {
+    navigator.clipboard.writeText(pw);
+    setCopiedUser(userId);
+    setTimeout(() => setCopiedUser(null), 2000);
   };
 
   if (authed === null) {
@@ -132,11 +177,119 @@ export default function AdminCMS() {
           <span className="text-[10px] text-crimson-500 font-bold uppercase tracking-[0.3em]">Spirit of Santa</span>
           <h1 className="text-xl font-serif italic text-white mt-0.5">Company Admin</h1>
         </div>
-        <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-slate-500 hover:text-red-400 transition font-medium">
-          <LogOut size={14} /> Log Out
-        </button>
+        <div className="flex items-center gap-6">
+          <nav className="flex gap-1 bg-slate-900 border border-slate-800 rounded-full px-1 py-1">
+            <button
+              onClick={() => setActiveTab('toys')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
+                activeTab === 'toys' ? 'bg-crimson-700 text-white' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <ShoppingBag size={13} /> Toys
+            </button>
+            <button
+              onClick={() => { setActiveTab('users'); if (users.length === 0) loadUsers(); }}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
+                activeTab === 'users' ? 'bg-crimson-700 text-white' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <Users size={13} /> Users
+            </button>
+          </nav>
+          <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-slate-500 hover:text-red-400 transition font-medium">
+            <LogOut size={14} /> Log Out
+          </button>
+        </div>
       </header>
       <main className="max-w-4xl mx-auto px-12 py-16">
+
+        {/* ── Users Tab ── */}
+        {activeTab === 'users' && (
+          <div>
+            <div className="flex justify-between items-end mb-10">
+              <div>
+                <h2 className="text-3xl font-serif italic">Parent Accounts</h2>
+                <p className="text-slate-500 text-sm mt-1">{users.length} {users.length === 1 ? 'account' : 'accounts'} registered</p>
+              </div>
+              <button onClick={loadUsers} className="text-xs text-slate-500 hover:text-white transition font-medium">↺ Refresh</button>
+            </div>
+            {usersLoading ? (
+              <p className="text-slate-600 text-sm italic animate-pulse">Loading users…</p>
+            ) : users.length === 0 ? (
+              <div className="text-center py-24 border border-dashed border-slate-800 rounded-2xl">
+                <p className="text-slate-600 font-serif italic text-lg">No users yet.</p>
+              </div>
+            ) : (
+              <div className="border border-slate-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 border-b border-slate-800">
+                    <tr>
+                      <th className="px-8 py-5">Email</th>
+                      <th className="px-8 py-5">Joined</th>
+                      <th className="px-8 py-5">Children</th>
+                      <th className="px-8 py-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {users.map((user) => (
+                      <tr key={user.id} className="hover:bg-slate-900/50 transition">
+                        <td className="px-8 py-5">
+                          <div>
+                            <span className="text-white font-medium">{user.email}</span>
+                            {tempPasswords[user.id] && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="font-mono text-xs bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700">
+                                  {tempPasswords[user.id]}
+                                </span>
+                                <button
+                                  onClick={() => copyTemp(user.id, tempPasswords[user.id])}
+                                  className="p-1 text-slate-500 hover:text-white transition"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedUser === user.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-8 py-5 text-slate-400">
+                          {new Date(user.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className="text-crimson-400 font-mono font-bold">{user._count.children}</span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex justify-end items-center gap-2">
+                            <button
+                              onClick={() => handleResetPassword(user.id)}
+                              disabled={resettingUser === user.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg transition disabled:opacity-40"
+                              title="Reset password"
+                            >
+                              <KeyRound size={12} />
+                              {resettingUser === user.id ? 'Resetting…' : 'Reset PW'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user.id, user.email)}
+                              disabled={deletingUser === user.id}
+                              className="p-2 text-slate-600 hover:text-red-400 transition disabled:opacity-40"
+                              title="Delete account"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Toy Catalog Tab ── */}
+        {activeTab === 'toys' && (<>
         <div className="flex justify-between items-end mb-10">
           <div>
             <h2 className="text-3xl font-serif italic">Toy Catalog</h2>
@@ -221,6 +374,7 @@ export default function AdminCMS() {
             </table>
           </div>
         )}
+        </>)}
       </main>
     </div>
   );
