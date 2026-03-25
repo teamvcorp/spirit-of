@@ -62,7 +62,7 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
         </button>
 
         <h2 className="text-2xl font-serif italic mb-2">New Helper</h2>
-        <p className="text-slate-400 text-sm mb-2">Enter your child's name to begin the magic.</p>
+        <p className="text-slate-400 text-sm mb-2">Enter your child's name to begin the magic. Each child needs a unique name — if two children share a name, use a nickname (e.g. &ldquo;Emma-Bear&rdquo;).</p>
         <p className="text-xs text-crimson-600 font-semibold mb-8">A one-time $5 Magic Container fee applies per child.</p>
 
         <form onSubmit={handleSubmit}>
@@ -70,7 +70,7 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Child's Name"
+            placeholder="Child's name or nickname"
             className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-gold-400 mb-4"
           />
           {error && <p className="text-red-500 text-xs mb-3">{error}</p>}

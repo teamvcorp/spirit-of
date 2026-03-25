@@ -86,12 +86,29 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  // Send final list email
-  await sendFinalList(
-    session.user.email,
-    shippingAddress,
-    user.children.map((c) => ({ name: c.name, items: c.wishlist }))
-  );
+  // Send final list email — if this fails, roll back the lock and wallet deduction
+  // so the parent can try again without being stuck in a locked state.
+  try {
+    await sendFinalList(
+      session.user.email,
+      shippingAddress,
+      user.children.map((c) => ({ name: c.name, items: c.wishlist }))
+    );
+  } catch (err) {
+    console.error('[finalize] sendFinalList failed, rolling back:', err);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isChristmasLocked: false,
+        finalizedAt: null,
+        walletBalance: { increment: totalCostCents },
+      },
+    });
+    return NextResponse.json(
+      { error: 'Your list could not be sent right now. Your account has been unlocked — please try again.' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ success: true });
 }

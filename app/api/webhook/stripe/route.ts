@@ -74,11 +74,17 @@ export async function POST(req: Request) {
 
         const recipientEmail = meta.recipientEmail || pi.receipt_email;
         if (user.shippingAddress && recipientEmail) {
-          await sendFinalList(
-            recipientEmail,
-            user.shippingAddress,
-            user.children.map((c) => ({ name: c.name, items: c.wishlist }))
-          );
+          // Payment is already captured — don't crash the webhook if the email fails.
+          // The account stays locked (correct) and an admin can resend manually.
+          try {
+            await sendFinalList(
+              recipientEmail,
+              user.shippingAddress,
+              user.children.map((c) => ({ name: c.name, items: c.wishlist }))
+            );
+          } catch (err) {
+            console.error('[webhook] CHRISTMAS_FINALIZE sendFinalList failed for', userId, err);
+          }
         }
       }
     }
@@ -108,9 +114,17 @@ export async function POST(req: Request) {
     if (meta.type === 'CHILD_REGISTRATION') {
       const { parentId, childName } = meta;
       if (parentId && childName) {
-        await prisma.child.create({
-          data: { name: childName, parentId, magicPoints: 0 },
+        // Guard: don't create a duplicate-name child if the webhook fires more than once
+        // (idempotency guard above handles PI-level dupes, but be safe at child level too)
+        const alreadyExists = await prisma.child.findFirst({
+          where: { parentId, name: { equals: childName, mode: 'insensitive' } },
+          select: { id: true },
         });
+        if (!alreadyExists) {
+          await prisma.child.create({
+            data: { name: childName, parentId, magicPoints: 0 },
+          });
+        }
         const parent = await prisma.user.findUnique({
           where: { id: parentId },
           select: { referralCode: true },

@@ -16,7 +16,7 @@ export default function Register() {
     setError(null);
     try {
       await registerUser(form.email, form.password);
-      router.push("/admin");
+      router.push("/login");
     } catch (err: unknown) {
       if (isRedirectError(err)) throw err;
       setError(err instanceof Error ? err.message : "Registration failed.");
