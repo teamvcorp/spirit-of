@@ -352,6 +352,9 @@ function MagicPageInner() {
               <p className="text-center text-[10px] text-slate-300 mt-4">
                 Secured by Stripe · Spirit of Santa
               </p>
+              <p className="text-center text-[9px] text-slate-300 mt-2">
+                A project of Von Der Becke Academy Corp &middot; 501(c)(3) &middot; EIN 46-1005883
+              </p>
             </motion.div>
           )}
         </AnimatePresence>

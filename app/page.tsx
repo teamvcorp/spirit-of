@@ -64,8 +64,9 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 text-center text-slate-400 text-xs tracking-widest uppercase">
-        &copy; {new Date().getFullYear()} Spirit of Santa &bull; Built on fyht4.com
+      <footer className="py-12 text-center text-slate-400 text-xs">
+        <p className="tracking-widest uppercase">&copy; {new Date().getFullYear()} Spirit of Santa &bull; Built on fyht4.com</p>
+        <p className="mt-2 text-slate-300 tracking-wide normal-case">A project of Von Der Becke Academy Corp &middot; 501(c)(3) Educational Facility &middot; EIN 46-1005883</p>
       </footer>
     </div>
   );

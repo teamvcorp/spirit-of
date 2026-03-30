@@ -484,6 +484,9 @@ export default function ParentPortal() {
           <button onClick={() => signOut({ callbackUrl: "/login" })} className="text-xs text-slate-400 hover:text-red-500 transition font-medium">
             Log Out
           </button>
+          <p className="text-[9px] text-slate-300 leading-relaxed mt-4 pt-4 border-t border-slate-100">
+            A project of Von Der Becke Academy Corp<br />501(c)(3) Educational Facility &middot; EIN 46-1005883
+          </p>
         </div>
       </aside>
 

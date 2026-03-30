@@ -114,6 +114,9 @@ export default function LoginPage() {
         <p className="text-center mt-8 text-[10px] text-slate-300 uppercase tracking-[0.3em]">
           Secure Access &bull; Spirit of Santa
         </p>
+        <p className="text-center mt-2 text-[9px] text-slate-300 tracking-wide">
+          A project of Von Der Becke Academy Corp &middot; 501(c)(3) &middot; EIN 46-1005883
+        </p>
       </motion.div>
     </div>
   );
