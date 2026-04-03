@@ -241,8 +241,12 @@ export default function ChildDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {toys.filter((t) => wishlistIds.includes(t.id)).map((toy) => (
                     <div key={toy.id} className="bg-white p-6 rounded-4xl border border-crimson-200 ring-2 ring-crimson-100 shadow-sm">
-                      <div className="aspect-square bg-slate-50 rounded-2xl mb-4 flex items-center justify-center text-4xl">
-                        🎁
+                      <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden">
+                        {toy.image ? (
+                          <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-4xl">🎁</div>
+                        )}
                       </div>
                       <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
                       <div className="flex justify-between items-center mt-2">
