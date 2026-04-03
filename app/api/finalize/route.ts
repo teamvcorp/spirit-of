@@ -12,10 +12,10 @@ async function resolveWishlists(db: Awaited<ReturnType<typeof getDb>>, children:
     : [];
   const toyMap = Object.fromEntries(toys.map(t => [t._id.toString(), t]));
 
-  return children.map(c => ({
+  return children.map((c: any) => ({
     id: c._id.toString(),
     name: c.name,
-    wishlist: (c.wishlist ?? []).map(id => {
+    wishlist: (c.wishlist ?? []).map((id: string) => {
       const t = toyMap[id];
       return t ? { id: t._id.toString(), name: t.name, pointCost: t.pointCost } : null;
     }).filter(Boolean) as Array<{ id: string; name: string; pointCost: number }>,
