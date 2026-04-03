@@ -4,13 +4,24 @@ import QRCode from 'qrcode';
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = "Santa's Workshop <postmaster@fyht4.com>";
 
-export const sendOrderConfirmation = async (userEmail: string, orderDetails: string) => {
+type CardOrderDetails = {
+  shippingAddress: string;
+  referralCode: string;
+  childNames: string[];
+};
+
+export const sendOrderConfirmation = async (userEmail: string, details: CardOrderDetails) => {
+  const { shippingAddress, referralCode, childNames } = details;
+  const domain = 'https://spiritofsanta.com';
+  const magicUrl = referralCode ? `${domain}/magic?code=${referralCode}` : '';
+  const qrDataUrl = magicUrl ? await QRCode.toDataURL(magicUrl, { width: 200, margin: 1 }) : '';
+
   // To User
   await resend.emails.send({
     from: FROM_EMAIL,
     to: userEmail,
     subject: "✨ Your Magic Cards are on the way!",
-    html: `<p>We've received your order for: <strong>${orderDetails}</strong>. Our elves are preparing them now.</p>`
+    html: `<p>We've received your order for <strong>20x Physical Magic Referral Cards</strong>. Our elves are preparing them now.</p>`
   });
 
   // To Company
@@ -18,7 +29,23 @@ export const sendOrderConfirmation = async (userEmail: string, orderDetails: str
     from: FROM_EMAIL,
     to: "admin@thevacorp.com",
     subject: "#sos card order",
-    html: `<p>New order from ${userEmail}: ${orderDetails}</p>`
+    html: `
+      <div style="font-family:sans-serif;max-width:640px;margin:auto;">
+        <h1 style="color:#c0392b;">🎄 New Physical Card Order</h1>
+        <table style="border-collapse:collapse;width:100%;font-size:14px;margin-bottom:24px;">
+          <tr><td style="padding:8px 12px;font-weight:bold;color:#555;">Parent Email</td><td style="padding:8px 12px;">${userEmail}</td></tr>
+          <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-weight:bold;color:#555;">Children</td><td style="padding:8px 12px;">${childNames.length ? childNames.join(', ') : 'None registered'}</td></tr>
+          <tr><td style="padding:8px 12px;font-weight:bold;color:#555;">Family Code</td><td style="padding:8px 12px;color:#c0392b;font-weight:bold;">${referralCode || 'N/A'}</td></tr>
+          <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-weight:bold;color:#555;">Ship To</td><td style="padding:8px 12px;"><pre style="margin:0;font-family:sans-serif;white-space:pre-wrap;">${shippingAddress || 'No address on file'}</pre></td></tr>
+        </table>
+        ${qrDataUrl ? `
+        <div style="text-align:center;margin-bottom:24px;">
+          <p style="color:#555;font-size:13px;margin-bottom:8px;">QR Code for cards (links to ${magicUrl})</p>
+          <img src="${qrDataUrl}" width="180" height="180" style="border-radius:12px;" />
+        </div>` : ''}
+        <p style="color:#aaa;font-size:11px;">Print this QR on the physical cards. Order total: $10.00</p>
+      </div>
+    `,
   });
 };
 

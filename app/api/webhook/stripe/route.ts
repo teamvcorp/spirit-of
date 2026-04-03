@@ -29,7 +29,17 @@ export async function POST(req: Request) {
 
     if (meta.type === 'PHYSICAL_CARDS') {
       const email = meta.recipientEmail || pi.receipt_email;
-      if (email) await sendOrderConfirmation(email, '20x Physical Magic Cards');
+      if (email) {
+        const parent = await db.collection("users").findOne({ email });
+        const children = parent
+          ? await db.collection("children").find({ parentId: parent._id.toString() }).toArray()
+          : [];
+        await sendOrderConfirmation(email, {
+          shippingAddress: parent?.shippingAddress ?? '',
+          referralCode: parent?.referralCode ?? '',
+          childNames: children.map((c: any) => c.name as string),
+        });
+      }
     }
 
     if (meta.type === 'WALLET_TOPUP') {
