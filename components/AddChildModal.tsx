@@ -89,7 +89,7 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
             disabled={loading || !name.trim()}
             className="w-full bg-slate-900 text-white py-4 rounded-full font-bold hover:bg-crimson-600 transition disabled:opacity-50"
           >
-          {loading ? "Loading…" : "Continue to Payment · $5"}
+          {loading ? "Loading…" : promoCode.trim() ? "Register Child" : "Continue to Payment · $5"}
           </button>
         </form>
       </motion.div>

@@ -36,22 +36,17 @@ export async function POST(req: Request) {
     if (parent.usedFreeChildPromo) {
       return NextResponse.json({ error: "This promo code has already been used by your family." }, { status: 400 });
     }
-    const mongoSession = db.client.startSession();
-    try {
-      await mongoSession.withTransaction(async () => {
-        await db.collection("children").insertOne(
-          { name: trimmedName, parentId: parent._id.toString(), magicPoints: 0, wishlist: [], lastReset: new Date() },
-          { session: mongoSession }
-        );
-        await db.collection("users").updateOne(
-          { _id: parent._id },
-          { $set: { usedFreeChildPromo: true } },
-          { session: mongoSession }
-        );
-      });
-    } finally {
-      await mongoSession.endSession();
-    }
+    await db.collection("children").insertOne({
+      name: trimmedName,
+      parentId: parent._id.toString(),
+      magicPoints: 0,
+      wishlist: [],
+      lastReset: new Date(),
+    });
+    await db.collection("users").updateOne(
+      { _id: parent._id },
+      { $set: { usedFreeChildPromo: true } }
+    );
     return NextResponse.json({ success: true });
   }
 
