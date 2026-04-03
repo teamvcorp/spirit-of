@@ -20,6 +20,7 @@ export default function AdminCMS() {
   const [formDesc, setFormDesc] = useState("");
   const [formPoints, setFormPoints] = useState("");
   const [formImage, setFormImage] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -84,6 +85,20 @@ export default function AdminCMS() {
     setToys([]);
     setUsers([]);
     setTempPasswords({});
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    setFormError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) { setFormError(d.error ?? "Upload failed"); setUploading(false); return; }
+      setFormImage(d.url);
+    } catch { setFormError("Upload failed"); }
+    setUploading(false);
   };
 
   const handleAddToy = async (e: React.FormEvent) => {
@@ -389,8 +404,20 @@ export default function AdminCMS() {
               <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Brief description shown to children" rows={2} className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl text-sm outline-none focus:border-crimson-600 transition placeholder:text-slate-600 resize-none" />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Image URL (optional)</label>
-              <input value={formImage} onChange={(e) => setFormImage(e.target.value)} placeholder="https://…" className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl text-sm outline-none focus:border-crimson-600 transition placeholder:text-slate-600" />
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Toy Image (optional)</label>
+              <div className="flex items-center gap-4">
+                <label className={`cursor-pointer bg-slate-800 border border-slate-700 hover:border-crimson-600 text-slate-400 hover:text-white px-4 py-3 rounded-xl text-sm transition ${uploading ? 'opacity-40 pointer-events-none' : ''}`}>
+                  {uploading ? 'Uploading…' : 'Choose Image'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }} />
+                </label>
+                {formImage && (
+                  <div className="flex items-center gap-3">
+                    <img src={formImage} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-slate-700" />
+                    <span className="text-emerald-400 text-xs font-medium">Uploaded ✓</span>
+                    <button type="button" onClick={() => setFormImage("")} className="text-slate-600 hover:text-red-400 text-xs transition">Remove</button>
+                  </div>
+                )}
+              </div>
             </div>
             {formError && <p className="text-red-400 text-xs">{formError}</p>}
             <div className="flex justify-end pt-2">
