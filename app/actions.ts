@@ -15,7 +15,7 @@ export async function toggleWishlistItem(childId: string, toyId: string, add: bo
   } else {
     await db.collection("children").updateOne(
       { _id: new ObjectId(childId) },
-      { $pull: { wishlist: toyId } }
+      { $pull: { wishlist: toyId } } as any
     );
   }
 }
