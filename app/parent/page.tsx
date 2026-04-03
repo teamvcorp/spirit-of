@@ -144,7 +144,16 @@ export default function ParentPortal() {
           title: "Add Magic Points",
           description: `Adding $${(amountInCents / 100).toFixed(2)} to your wallet.`,
           submitLabel: `Pay $${(amountInCents / 100).toFixed(2)}`,
-          onSuccess: () => { setStripeModal(null); fetchChildren(); },
+          onSuccess: () => {
+            setStripeModal(null);
+            // Poll a few times to catch the async webhook update
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              await fetchChildren();
+              if (attempts >= 5) clearInterval(poll);
+            }, 2000);
+          },
         });
       }
     } catch (err) {
@@ -516,14 +525,14 @@ export default function ParentPortal() {
         </div>
 
         <div className="space-y-4">
-          <div className="p-4 bg-crimson-50 rounded-2xl">
-            <p className="text-[10px] text-crimson-400 font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+          <div className={`p-4 ${walletBalance > 0 ? 'bg-emerald-50' : 'bg-crimson-50'} rounded-2xl`}>
+            <p className={`text-[10px] ${walletBalance > 0 ? 'text-emerald-500' : 'text-crimson-400'} font-bold uppercase tracking-widest mb-1 flex items-center gap-1`}>
               <Wallet size={10} /> Wallet Balance
             </p>
-            <p className="text-lg font-bold text-crimson-700">${(walletBalance / 100).toFixed(2)}</p>
+            <p className={`text-lg font-bold ${walletBalance > 0 ? 'text-emerald-700' : 'text-crimson-700'}`}>${(walletBalance / 100).toFixed(2)}</p>
             <button
               onClick={() => setActiveTab("billing")}
-              className="text-[10px] text-crimson-400 hover:text-crimson-600 mt-1 font-semibold transition"
+              className={`text-[10px] ${walletBalance > 0 ? 'text-emerald-500 hover:text-emerald-700' : 'text-crimson-400 hover:text-crimson-600'} mt-1 font-semibold transition`}
             >
               Add funds →
             </button>
@@ -789,7 +798,7 @@ export default function ParentPortal() {
                                     <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Send Magic Points to {child.name}</p>
                                     <p className="text-xs text-slate-400">
                                       Each point costs <span className="font-bold text-slate-600">$1.00</span> from your wallet.
-                                      Balance: <span className="font-bold text-crimson-600">${(walletBalance / 100).toFixed(2)}</span>
+                                      Balance: <span className={`font-bold ${walletBalance > 0 ? 'text-emerald-600' : 'text-crimson-600'}`}>${(walletBalance / 100).toFixed(2)}</span>
                                     </p>
                                   </div>
                                 </div>
@@ -930,7 +939,7 @@ export default function ParentPortal() {
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                       <Wallet size={12} /> Magic Points Wallet
                     </p>
-                    <p className="text-4xl font-serif font-bold text-crimson-700">${(walletBalance / 100).toFixed(2)}</p>
+                    <p className={`text-4xl font-serif font-bold ${walletBalance > 0 ? 'text-emerald-600' : 'text-crimson-700'}`}>${(walletBalance / 100).toFixed(2)}</p>
                     <p className="text-xs text-slate-400 mt-1">1 Magic Point = $1.00 · funds points you send to children</p>
                   </div>
                 </div>
