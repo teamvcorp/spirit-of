@@ -12,12 +12,27 @@ export async function GET() {
     const usersRaw = await db.collection("users").find().sort({ createdAt: -1 }).toArray();
 
     const users = await Promise.all(usersRaw.map(async (u) => {
-      const childCount = await db.collection("children").countDocuments({ parentId: u._id.toString() });
+      const children = await db.collection("children")
+        .find({ parentId: u._id.toString() })
+        .project({ name: 1, magicPoints: 1, wishlist: 1 })
+        .sort({ name: 1 })
+        .toArray();
+
       return {
         id: u._id.toString(),
         email: u.email,
         createdAt: u.createdAt,
-        _count: { children: childCount },
+        walletBalance: u.walletBalance ?? 0,
+        shippingAddress: u.shippingAddress ?? '',
+        referralCode: u.referralCode ?? '',
+        isChristmasLocked: u.isChristmasLocked ?? false,
+        children: children.map((c: any) => ({
+          id: c._id.toString(),
+          name: c.name,
+          magicPoints: c.magicPoints ?? 0,
+          wishlistCount: (c.wishlist ?? []).length,
+        })),
+        _count: { children: children.length },
       };
     }));
 

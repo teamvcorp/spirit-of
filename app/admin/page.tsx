@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check } from "lucide-react";
+import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 type Toy = { id: string; name: string; description: string; price: number; image: string };
-type User = { id: string; email: string; createdAt: string; _count: { children: number } };
+type UserChild = { id: string; name: string; magicPoints: number; wishlistCount: number };
+type User = { id: string; email: string; createdAt: string; walletBalance: number; shippingAddress: string; referralCode: string; isChristmasLocked: boolean; children: UserChild[]; _count: { children: number } };
 
 export default function AdminCMS() {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -30,6 +31,7 @@ export default function AdminCMS() {
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
   const [copiedUser, setCopiedUser] = useState<string | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/auth")
@@ -250,52 +252,103 @@ export default function AdminCMS() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {users.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-900/50 transition">
-                        <td className="px-8 py-5">
-                          <div>
-                            <span className="text-white font-medium">{user.email}</span>
-                            {tempPasswords[user.id] && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="font-mono text-xs bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700">
-                                  {tempPasswords[user.id]}
-                                </span>
+                      <tr key={user.id} className="group">
+                        <td colSpan={4} className="p-0">
+                          {/* Clickable row */}
+                          <div
+                            className="grid hover:bg-slate-900/50 transition cursor-pointer"
+                            style={{ gridTemplateColumns: '1fr auto auto auto' }}
+                            onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                          >
+                            <div className="px-8 py-5 flex items-center gap-2">
+                              {expandedUser === user.id ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+                              <div>
+                                <span className="text-white font-medium">{user.email}</span>
+                                {tempPasswords[user.id] && (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <span className="font-mono text-xs bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700">
+                                      {tempPasswords[user.id]}
+                                    </span>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); copyTemp(user.id, tempPasswords[user.id]); }}
+                                      className="p-1 text-slate-500 hover:text-white transition"
+                                      title="Copy to clipboard"
+                                    >
+                                      {copiedUser === user.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="px-8 py-5 text-slate-400 text-sm">
+                              {new Date(user.createdAt).toLocaleDateString()}
+                            </div>
+                            <div className="px-8 py-5 text-sm">
+                              <span className="text-crimson-400 font-mono font-bold">{user._count.children}</span>
+                            </div>
+                            <div className="px-8 py-5">
+                              <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                 <button
-                                  onClick={() => copyTemp(user.id, tempPasswords[user.id])}
-                                  className="p-1 text-slate-500 hover:text-white transition"
-                                  title="Copy to clipboard"
+                                  onClick={() => handleResetPassword(user.id)}
+                                  disabled={resettingUser === user.id}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg transition disabled:opacity-40"
+                                  title="Reset password"
                                 >
-                                  {copiedUser === user.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                  <KeyRound size={12} />
+                                  {resettingUser === user.id ? 'Resetting…' : 'Reset PW'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id, user.email)}
+                                  disabled={deletingUser === user.id}
+                                  className="p-2 text-slate-600 hover:text-red-400 transition disabled:opacity-40"
+                                  title="Delete account"
+                                >
+                                  <Trash2 size={16} />
                                 </button>
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </td>
-                        <td className="px-8 py-5 text-slate-400">
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className="text-crimson-400 font-mono font-bold">{user._count.children}</span>
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="flex justify-end items-center gap-2">
-                            <button
-                              onClick={() => handleResetPassword(user.id)}
-                              disabled={resettingUser === user.id}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg transition disabled:opacity-40"
-                              title="Reset password"
-                            >
-                              <KeyRound size={12} />
-                              {resettingUser === user.id ? 'Resetting…' : 'Reset PW'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(user.id, user.email)}
-                              disabled={deletingUser === user.id}
-                              className="p-2 text-slate-600 hover:text-red-400 transition disabled:opacity-40"
-                              title="Delete account"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          {/* Expanded detail panel */}
+                          {expandedUser === user.id && (
+                            <div className="bg-slate-900/60 border-t border-slate-800 px-12 py-6 space-y-4">
+                              <div className="grid grid-cols-3 gap-6 text-sm">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Wallet Balance</span>
+                                  <span className="text-white font-mono font-bold text-lg">${(user.walletBalance / 100).toFixed(2)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Referral Code</span>
+                                  <span className="text-crimson-400 font-mono font-bold">{user.referralCode || '—'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Christmas Lock</span>
+                                  <span className={user.isChristmasLocked ? 'text-emerald-400 font-bold' : 'text-slate-500'}>{user.isChristmasLocked ? '🔒 Finalized' : 'Open'}</span>
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Shipping Address</span>
+                                <p className="text-slate-300 text-sm whitespace-pre-wrap">{user.shippingAddress || 'No address on file'}</p>
+                              </div>
+                              {user.children.length > 0 ? (
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Children</span>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {user.children.map((child) => (
+                                      <div key={child.id} className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex justify-between items-center">
+                                        <div>
+                                          <span className="text-white font-medium text-sm">{child.name}</span>
+                                          <span className="text-slate-500 text-xs ml-2">{child.wishlistCount} wishlist item{child.wishlistCount !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <span className="text-crimson-400 font-mono font-bold text-sm">{child.magicPoints} pts</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-slate-600 text-sm italic">No children registered.</p>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
