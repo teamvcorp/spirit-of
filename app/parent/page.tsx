@@ -39,6 +39,10 @@ export default function ParentPortal() {
   const [pointsInput, setPointsInput] = useState("");
   const [sendError, setSendError] = useState("");
   const [toppingUp, setToppingUp] = useState(false);
+  // Card order address prompt
+  const [showCardAddressPrompt, setShowCardAddressPrompt] = useState(false);
+  const [addrFields, setAddrFields] = useState({ fullName: '', street: '', apt: '', city: '', state: '', zip: '' });
+  const [addrErrors, setAddrErrors] = useState<Record<string, string>>({});
   // Referral cards — family-level, no per-child selection needed
   const [generatingCards, setGeneratingCards] = useState(false);
   const [emailCardsSuccess, setEmailCardsSuccess] = useState(false);
@@ -150,11 +154,58 @@ export default function ParentPortal() {
     }
   };
 
-  const handleOrderCards = async () => {
+  const handleOrderCards = () => {
+    // Pre-fill from existing shipping address if it looks structured
+    const existing = shippingAddress;
+    if (existing && !addrFields.fullName) {
+      // Try to parse "Name\nStreet\nCity, ST ZIP" format
+      const lines = existing.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      if (lines.length >= 3) {
+        const lastLine = lines[lines.length - 1];
+        const cityStateZip = lastLine.match(/^(.+),\s*([A-Z]{2})\s+(\d{5}(-\d{4})?)$/i);
+        setAddrFields({
+          fullName: lines[0] || '',
+          street: lines[1] || '',
+          apt: lines.length > 3 ? lines[2] : '',
+          city: cityStateZip?.[1] || '',
+          state: cityStateZip?.[2]?.toUpperCase() || '',
+          zip: cityStateZip?.[3] || '',
+        });
+      }
+    }
+    setAddrErrors({});
+    setShowCardAddressPrompt(true);
+  };
+
+  const validateAddr = () => {
+    const e: Record<string, string> = {};
+    if (!addrFields.fullName.trim()) e.fullName = 'Full name is required';
+    if (!addrFields.street.trim()) e.street = 'Street address is required';
+    if (!addrFields.city.trim()) e.city = 'City is required';
+    if (!/^[A-Z]{2}$/i.test(addrFields.state.trim())) e.state = 'Enter a 2-letter state code';
+    if (!/^\d{5}(-\d{4})?$/.test(addrFields.zip.trim())) e.zip = 'Enter a valid ZIP code';
+    setAddrErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleConfirmCardOrder = async () => {
+    if (!validateAddr()) return;
+    setShowCardAddressPrompt(false);
+    const formatted = [
+      addrFields.fullName.trim(),
+      addrFields.street.trim(),
+      addrFields.apt.trim(),
+      `${addrFields.city.trim()}, ${addrFields.state.trim().toUpperCase()} ${addrFields.zip.trim()}`
+    ].filter(Boolean).join('\n');
     try {
-      const res = await fetch("/api/checkout/cards", { method: "POST" });
+      const res = await fetch("/api/checkout/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingAddress: formatted }),
+      });
       const data = await res.json();
       if (data.clientSecret) {
+        setShippingAddress(formatted);
         setStripeModal({
           clientSecret: data.clientSecret,
           title: "Order Physical Cards",
@@ -508,6 +559,86 @@ export default function ParentPortal() {
             onSuccess={stripeModal.onSuccess}
             onClose={() => setStripeModal(null)}
           />
+        )}
+
+        {/* Card order address prompt */}
+        {showCardAddressPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowCardAddressPrompt(false); }}>
+            <motion.div initial={{ scale: 0.93, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-10">
+              <h2 className="text-2xl font-serif italic mb-1">Shipping Address</h2>
+              <p className="text-slate-400 text-sm mb-6">Where should we send the physical cards?</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Full Name *</label>
+                  <input
+                    value={addrFields.fullName}
+                    onChange={(e) => { setAddrFields(f => ({ ...f, fullName: e.target.value })); setAddrErrors(e2 => ({ ...e2, fullName: '' })); }}
+                    placeholder="Jane Smith"
+                    className={`w-full border ${addrErrors.fullName ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400`}
+                    autoFocus
+                  />
+                  {addrErrors.fullName && <p className="text-red-500 text-[11px] mt-1">{addrErrors.fullName}</p>}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Street Address *</label>
+                  <input
+                    value={addrFields.street}
+                    onChange={(e) => { setAddrFields(f => ({ ...f, street: e.target.value })); setAddrErrors(e2 => ({ ...e2, street: '' })); }}
+                    placeholder="123 Main Street"
+                    className={`w-full border ${addrErrors.street ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400`}
+                  />
+                  {addrErrors.street && <p className="text-red-500 text-[11px] mt-1">{addrErrors.street}</p>}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Apt / Suite / Unit</label>
+                  <input
+                    value={addrFields.apt}
+                    onChange={(e) => setAddrFields(f => ({ ...f, apt: e.target.value }))}
+                    placeholder="Apt 4B (optional)"
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400"
+                  />
+                </div>
+                <div className="grid grid-cols-5 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">City *</label>
+                    <input
+                      value={addrFields.city}
+                      onChange={(e) => { setAddrFields(f => ({ ...f, city: e.target.value })); setAddrErrors(e2 => ({ ...e2, city: '' })); }}
+                      placeholder="Springfield"
+                      className={`w-full border ${addrErrors.city ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400`}
+                    />
+                    {addrErrors.city && <p className="text-red-500 text-[11px] mt-1">{addrErrors.city}</p>}
+                  </div>
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">State *</label>
+                    <input
+                      value={addrFields.state}
+                      onChange={(e) => { setAddrFields(f => ({ ...f, state: e.target.value.slice(0, 2).toUpperCase() })); setAddrErrors(e2 => ({ ...e2, state: '' })); }}
+                      placeholder="IL"
+                      maxLength={2}
+                      className={`w-full border ${addrErrors.state ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400 uppercase text-center`}
+                    />
+                    {addrErrors.state && <p className="text-red-500 text-[11px] mt-1">{addrErrors.state}</p>}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">ZIP Code *</label>
+                    <input
+                      value={addrFields.zip}
+                      onChange={(e) => { const v = e.target.value.replace(/[^\d-]/g, '').slice(0, 10); setAddrFields(f => ({ ...f, zip: v })); setAddrErrors(e2 => ({ ...e2, zip: '' })); }}
+                      placeholder="62704"
+                      maxLength={10}
+                      className={`w-full border ${addrErrors.zip ? 'border-red-400' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm outline-none focus:border-crimson-500 transition placeholder:text-slate-400`}
+                    />
+                    {addrErrors.zip && <p className="text-red-500 text-[11px] mt-1">{addrErrors.zip}</p>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setShowCardAddressPrompt(false)} className="flex-1 py-4 rounded-full border border-slate-200 text-slate-600 font-bold hover:border-slate-400 transition text-sm">Cancel</button>
+                <button onClick={handleConfirmCardOrder} className="flex-1 py-4 rounded-full bg-slate-900 text-white font-bold hover:bg-crimson-600 transition text-sm">Continue to Payment</button>
+              </div>
+            </motion.div>
+          </div>
         )}
 
         <AnimatePresence mode="wait">
