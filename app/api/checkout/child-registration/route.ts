@@ -43,10 +43,21 @@ export async function POST(req: Request) {
       wishlist: [],
       lastReset: new Date(),
     });
-    await db.collection("users").updateOne(
-      { _id: parent._id },
-      { $set: { usedFreeChildPromo: true } }
-    );
+    // Generate referral code if first child
+    if (!parent.referralCode) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const code = `FAM-${seg()}-${seg()}`;
+      await db.collection("users").updateOne(
+        { _id: parent._id },
+        { $set: { usedFreeChildPromo: true, referralCode: code } }
+      );
+    } else {
+      await db.collection("users").updateOne(
+        { _id: parent._id },
+        { $set: { usedFreeChildPromo: true } }
+      );
+    }
     return NextResponse.json({ success: true });
   }
 
