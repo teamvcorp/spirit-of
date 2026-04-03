@@ -50,9 +50,13 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
             }`}
           >
             <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden relative">
-              <div className="w-full h-full flex items-center justify-center text-4xl bg-linear-to-br from-slate-50 to-slate-100">
-                🎁
-              </div>
+              {toy.image ? (
+                <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-4xl bg-linear-to-br from-slate-50 to-slate-100">
+                  🎁
+                </div>
+              )}
             </div>
 
             <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
