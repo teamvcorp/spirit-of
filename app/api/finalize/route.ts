@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { sendFinalList } from '@/lib/mail';
 
 // Helper: resolve wishlist toy IDs to toy documents
-async function resolveWishlists(db: Awaited<ReturnType<typeof getDb>>, children: Array<{ _id: any; name: string; wishlist?: string[] }>) {
+async function resolveWishlists(db: Awaited<ReturnType<typeof getDb>>, children: any[]) {
   const allToyIds = children.flatMap(c => (c.wishlist ?? []).map(id => new ObjectId(id)));
   const toys = allToyIds.length > 0
     ? await db.collection("toys").find({ _id: { $in: allToyIds } }).toArray()
