@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -9,19 +9,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ found: false, error: "No code provided" }, { status: 400 });
   }
 
-  const parent = await prisma.user.findUnique({
-    where: { referralCode: code },
-    select: {
-      children: { select: { name: true }, orderBy: { id: "asc" }, take: 1 },
-    },
-  });
+  const db = await getDb();
+  const parent = await db.collection("users").findOne({ referralCode: code });
 
   if (!parent) {
     return NextResponse.json({ found: false, error: "Code not found" }, { status: 404 });
   }
 
-  const familyName = parent.children[0]?.name
-    ? `${parent.children[0].name}'s family`
+  const firstChild = await db.collection("children").findOne(
+    { parentId: parent._id.toString() },
+    { sort: { _id: 1 }, projection: { name: 1 } }
+  );
+
+  const familyName = firstChild?.name
+    ? `${firstChild.name}'s family`
     : "this family";
 
   return NextResponse.json({ found: true, familyName, code });

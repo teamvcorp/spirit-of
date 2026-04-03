@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
+import QRCode from 'qrcode';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = "Santa's Workshop <postmaster@fyht4.com>";
-const ADMIN_EMAIL = process.env.COMPANY_EMAIL!;
 
 export const sendOrderConfirmation = async (userEmail: string, orderDetails: string) => {
   // To User
@@ -16,8 +16,8 @@ export const sendOrderConfirmation = async (userEmail: string, orderDetails: str
   // To Company
   await resend.emails.send({
     from: FROM_EMAIL,
-    to: ADMIN_EMAIL,
-    subject: "🚨 NEW ORDER: Physical Cards",
+    to: "admin@thevacorp.com",
+    subject: "#sos card order",
     html: `<p>New order from ${userEmail}: ${orderDetails}</p>`
   });
 };
@@ -82,12 +82,18 @@ export const sendDeedCards = async (
   codes: string[],
   domain: string
 ) => {
+  const qrImages = await Promise.all(
+    codes.map((code) => QRCode.toDataURL(`${domain}/verify/${code}`, { width: 120, margin: 1 }))
+  );
   const cardRows = codes.map((code, i) => `
-    <div style="border:2px solid #c0392b;border-radius:12px;padding:16px;margin-bottom:16px;">
-      <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
-      <div style="font-size:15px;color:#1a1a1a;font-style:italic;margin-bottom:10px;">${childName} did a good deed for you!</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px;">To reward them with Magic Points, visit:</div>
-      <a href="${domain}/verify/${code}" style="display:block;background:#fdf0ef;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:bold;color:#c0392b;text-decoration:none;word-break:break-all;">${domain}/verify/${code}</a>
+    <div style="border:2px solid #c0392b;border-radius:12px;padding:16px;margin-bottom:16px;display:flex;gap:14px;align-items:center;">
+      <img src="${qrImages[i]}" width="90" height="90" style="flex-shrink:0;border-radius:8px;" />
+      <div style="flex:1;">
+        <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
+        <div style="font-size:15px;color:#1a1a1a;font-style:italic;margin-bottom:10px;">${childName} did a good deed for you!</div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px;">To reward them with Magic Points, visit:</div>
+        <a href="${domain}/verify/${code}" style="display:block;background:#fdf0ef;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:bold;color:#c0392b;text-decoration:none;word-break:break-all;">${domain}/verify/${code}</a>
+      </div>
     </div>
   `).join('');
 
@@ -113,12 +119,16 @@ export const sendFamilyReferralCards = async (
   domain: string
 ) => {
   const magicUrl = `${domain}/magic?code=${referralCode}`;
+  const qrDataUrl = await QRCode.toDataURL(magicUrl, { width: 120, margin: 1 });
   const cards = Array.from({ length: 8 }, (_, i) => `
-    <div style="border:2px solid #c0392b;border-radius:12px;padding:16px;margin-bottom:16px;">
-      <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
-      <div style="font-size:15px;color:#1a1a1a;font-style:italic;margin-bottom:10px;">The ${familyName} family has been spreading holiday magic!</div>
-      <div style="font-size:11px;color:#555;margin-bottom:8px;">Send them a Magic Tip or message at:</div>
-      <a href="${magicUrl}" style="display:block;background:#fdf0ef;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:bold;color:#c0392b;text-decoration:none;word-break:break-all;">${magicUrl}</a>
+    <div style="border:2px solid #c0392b;border-radius:12px;padding:16px;margin-bottom:16px;display:flex;gap:14px;align-items:center;">
+      <img src="${qrDataUrl}" width="90" height="90" style="flex-shrink:0;border-radius:8px;" />
+      <div style="flex:1;">
+        <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
+        <div style="font-size:15px;color:#1a1a1a;font-style:italic;margin-bottom:10px;">The ${familyName} family has been spreading holiday magic!</div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px;">Send them a Magic Tip or message at:</div>
+        <a href="${magicUrl}" style="display:block;background:#fdf0ef;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:bold;color:#c0392b;text-decoration:none;word-break:break-all;">${magicUrl}</a>
+      </div>
     </div>
   `).join('');
 

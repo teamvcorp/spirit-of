@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -8,14 +8,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false });
   }
 
-  const child = await prisma.child.findUnique({
-    where: { id: childId },
-    include: { parent: { select: { parentPin: true } } },
-  });
+  const db = await getDb();
+  const child = await db.collection("children").findOne({ _id: new ObjectId(childId) });
+  if (!child) return NextResponse.json({ success: false });
 
-  if (!child?.parent?.parentPin) {
+  const parent = await db.collection("users").findOne({ _id: new ObjectId(child.parentId) });
+  if (!parent?.parentPin) {
     return NextResponse.json({ success: false, reason: "no_pin" });
   }
 
-  return NextResponse.json({ success: child.parent.parentPin === pin });
+  return NextResponse.json({ success: parent.parentPin === pin });
 }

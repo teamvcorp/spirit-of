@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -11,21 +11,23 @@ export async function POST(req: Request) {
   }
 
   const { referralCode } = await req.json();
+  const db = await getDb();
 
-  const parent = await prisma.user.findUnique({
-    where: { referralCode },
-    include: { children: { take: 1, orderBy: { id: "asc" } } },
-  });
-
+  const parent = await db.collection("users").findOne({ referralCode });
   if (!parent || parent.email !== session.user.email) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const familyName = parent.children[0]?.name
-    ? `${parent.children[0].name}'s`
+  const firstChild = await db.collection("children").findOne(
+    { parentId: parent._id.toString() },
+    { sort: { _id: 1 }, projection: { name: 1 } }
+  );
+
+  const familyName = firstChild?.name
+    ? `${firstChild.name}'s`
     : "Your";
 
-  const domain = process.env.NEXT_PUBLIC_DOMAIN ?? `https://${process.env.VERCEL_URL ?? "localhost:3000"}`;
+  const domain = "https://spiritofsanta.com";
   await sendFamilyReferralCards(parent.email, familyName, referralCode, domain);
 
   return NextResponse.json({ success: true });

@@ -52,9 +52,12 @@ export default function AdminCMS() {
 
   const loadToys = async () => {
     setToysLoading(true);
-    const r = await fetch("/api/toys");
-    const d = await r.json();
-    if (d.toys) setToys(d.toys);
+    try {
+      const r = await fetch("/api/toys");
+      if (!r.ok) { console.error("loadToys failed:", r.status); setToysLoading(false); return; }
+      const d = await r.json();
+      if (d.toys) setToys(d.toys);
+    } catch (e) { console.error("loadToys error:", e); }
     setToysLoading(false);
   };
 
@@ -109,9 +112,12 @@ export default function AdminCMS() {
 
   const loadUsers = async () => {
     setUsersLoading(true);
-    const r = await fetch("/api/admin/users");
-    const d = await r.json();
-    if (d.users) setUsers(d.users);
+    try {
+      const r = await fetch("/api/admin/users");
+      if (!r.ok) { console.error("loadUsers failed:", r.status); setUsersLoading(false); return; }
+      const d = await r.json();
+      if (d.users) setUsers(d.users);
+    } catch (e) { console.error("loadUsers error:", e); }
     setUsersLoading(false);
   };
 

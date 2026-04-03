@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-02-25.clover" });
@@ -18,17 +18,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Child name is required" }, { status: 400 });
   }
 
-  const parent = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true, email: true, usedFreeChildPromo: true },
-  });
+  const db = await getDb();
+  const parent = await db.collection("users").findOne({ email: session.user.email });
   if (!parent) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Prevent two children of the same parent from sharing a name (case-insensitive).
-  // Parents with children who share a legal name should use a nickname (e.g. "Emma-Bear").
-  const nameConflict = await prisma.child.findFirst({
-    where: { parentId: parent.id, name: { equals: trimmedName, mode: 'insensitive' } },
-    select: { id: true },
+  const nameConflict = await db.collection("children").findOne({
+    parentId: parent._id.toString(),
+    name: { $regex: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
   });
   if (nameConflict) {
     return NextResponse.json({
@@ -36,25 +32,36 @@ export async function POST(req: Request) {
     }, { status: 400 });
   }
 
-  // One-time promo: bypass the $5 fee
   if ((promoCode ?? "").trim().toLowerCase() === "1freechild") {
     if (parent.usedFreeChildPromo) {
       return NextResponse.json({ error: "This promo code has already been used by your family." }, { status: 400 });
     }
-    await prisma.$transaction([
-      prisma.child.create({ data: { name: trimmedName, parentId: parent.id, magicPoints: 0 } }),
-      prisma.user.update({ where: { id: parent.id }, data: { usedFreeChildPromo: true } }),
-    ]);
+    const mongoSession = db.client.startSession();
+    try {
+      await mongoSession.withTransaction(async () => {
+        await db.collection("children").insertOne(
+          { name: trimmedName, parentId: parent._id.toString(), magicPoints: 0, wishlist: [], lastReset: new Date() },
+          { session: mongoSession }
+        );
+        await db.collection("users").updateOne(
+          { _id: parent._id },
+          { $set: { usedFreeChildPromo: true } },
+          { session: mongoSession }
+        );
+      });
+    } finally {
+      await mongoSession.endSession();
+    }
     return NextResponse.json({ success: true });
   }
 
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: 500, // $5.00
+    amount: 500,
     currency: "usd",
     receipt_email: parent.email,
     metadata: {
       type: "CHILD_REGISTRATION",
-      parentId: parent.id,
+      parentId: parent._id.toString(),
       childName: trimmedName,
     },
   });

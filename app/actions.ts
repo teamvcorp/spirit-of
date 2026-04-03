@@ -1,65 +1,83 @@
 "use server"
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
-  // No auth check needed — child dashboard is already scoped by childId,
-  // and wishlist is just a preference (no payment involved).
-  await prisma.child.update({
-    where: { id: childId },
-    data: {
-      wishlist: add
-        ? { connect: { id: toyId } }
-        : { disconnect: { id: toyId } },
-    },
-  });
+  const db = await getDb();
+  if (add) {
+    await db.collection("children").updateOne(
+      { _id: new ObjectId(childId) },
+      { $addToSet: { wishlist: toyId } }
+    );
+  } else {
+    await db.collection("children").updateOne(
+      { _id: new ObjectId(childId) },
+      { $pull: { wishlist: toyId } }
+    );
+  }
 }
 
 export async function submitDailyVote(childId: string, isPositive: boolean) {
-  // Normalize to midnight UTC so one-per-day is enforced correctly
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
-  await prisma.dailyVote.upsert({
-    where: { childId_date: { childId, date: today } },
-    update: { isPositive },
-    create: { childId, isPositive, date: today },
-  });
+  const db = await getDb();
+  await db.collection("dailyVotes").updateOne(
+    { childId, date: today },
+    { $set: { isPositive, childId, date: today } },
+    { upsert: true }
+  );
 }
 
 export async function confirmDeed(formData: FormData) {
   const code = formData.get('code') as string;
   const note = (formData.get('note') as string) ?? '';
-
   if (!code) return;
 
-  const deed = await prisma.goodDeed.findUnique({
-    where: { code },
-    include: { child: { include: { parent: true } } },
-  });
+  const db = await getDb();
+  const deed = await db.collection("goodDeeds").findOne({ code, isConfirmed: false });
+  if (!deed) return;
 
-  if (!deed || deed.isConfirmed) return;
-
-  await prisma.$transaction([
-    prisma.goodDeed.update({
-      where: { code },
-      data: { isConfirmed: true, neighborNote: note },
-    }),
-    prisma.child.update({
-      where: { id: deed.childId },
-      data: { magicPoints: { increment: deed.pointsEarned } },
-    }),
-  ]);
+  const session = db.client.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await db.collection("goodDeeds").updateOne(
+        { code },
+        { $set: { isConfirmed: true, neighborNote: note } },
+        { session }
+      );
+      await db.collection("children").updateOne(
+        { _id: new ObjectId(deed.childId) },
+        { $inc: { magicPoints: deed.pointsEarned } },
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
 }
 
 export async function registerUser(email: string, password: string) {
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const db = await getDb();
+  const existing = await db.collection("users").findOne({ email });
   if (existing) redirect('/login');
   const hashed = await bcrypt.hash(password, 12);
-  await prisma.user.create({ data: { email, password: hashed } });
+  await db.collection("users").insertOne({
+    email,
+    password: hashed,
+    parentPin: null,
+    stripeId: null,
+    walletBalance: 0,
+    referralCode: null,
+    shippingAddress: null,
+    isChristmasLocked: false,
+    finalizedAt: null,
+    usedFreeChildPromo: false,
+    createdAt: new Date(),
+  });
 }
 
 export async function addChild(formData: FormData) {
@@ -67,19 +85,16 @@ export async function addChild(formData: FormData) {
   if (!session?.user?.email) return { error: "Not authenticated" };
 
   const name = formData.get("name") as string;
-
-  const parent = await prisma.user.findUnique({
-    where: { email: session.user.email }
-  });
-
+  const db = await getDb();
+  const parent = await db.collection("users").findOne({ email: session.user.email });
   if (!parent) return { error: "Parent not found" };
 
-  await prisma.child.create({
-    data: {
-      name: name,
-      parentId: parent.id,
-      magicPoints: 0,
-    }
+  await db.collection("children").insertOne({
+    name,
+    parentId: parent._id.toString(),
+    magicPoints: 0,
+    wishlist: [],
+    lastReset: new Date(),
   });
 }
 
@@ -87,11 +102,11 @@ export async function setParentPin(pin: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return { error: "Unauthorized" };
 
-  await prisma.user.update({
-    where: { email: session.user.email },
-    data: { parentPin: pin },
-  });
-
+  const db = await getDb();
+  await db.collection("users").updateOne(
+    { email: session.user.email },
+    { $set: { parentPin: pin } }
+  );
   return { success: true };
 }
 
@@ -104,28 +119,37 @@ export async function sendMagicPoints(childId: string, points: number) {
   if (!session?.user?.email) return { error: "Unauthorized" };
 
   const costInCents = points * 100;
+  const db = await getDb();
 
-  const parent = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { children: { where: { id: childId } } },
-  });
-
+  const parent = await db.collection("users").findOne({ email: session.user.email });
   if (!parent) return { error: "Parent not found" };
-  if (parent.children.length === 0) return { error: "Child not found" };
+
+  const child = await db.collection("children").findOne({
+    _id: new ObjectId(childId),
+    parentId: parent._id.toString(),
+  });
+  if (!child) return { error: "Child not found" };
   if (parent.walletBalance < costInCents) {
     return { error: "Insufficient wallet balance" };
   }
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: parent.id },
-      data: { walletBalance: { decrement: costInCents } },
-    }),
-    prisma.child.update({
-      where: { id: childId },
-      data: { magicPoints: { increment: points } },
-    }),
-  ]);
+  const mongoSession = db.client.startSession();
+  try {
+    await mongoSession.withTransaction(async () => {
+      await db.collection("users").updateOne(
+        { _id: parent._id },
+        { $inc: { walletBalance: -costInCents } },
+        { session: mongoSession }
+      );
+      await db.collection("children").updateOne(
+        { _id: new ObjectId(childId) },
+        { $inc: { magicPoints: points } },
+        { session: mongoSession }
+      );
+    });
+  } finally {
+    await mongoSession.endSession();
+  }
 
   return { success: true };
 }

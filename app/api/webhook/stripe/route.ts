@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { sendOrderConfirmation, sendFinalList, sendMagicTipNotification } from "@/lib/mail";
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
@@ -18,13 +18,12 @@ export async function POST(req: Request) {
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object as Stripe.PaymentIntent;
     const meta = pi.metadata ?? {};
+    const db = await getDb();
 
-    // Idempotency guard — if we've already handled this PaymentIntent, skip it.
-    // This prevents double-credits when both stripe listen AND a dashboard webhook fire.
+    // Idempotency guard
     try {
-      await prisma.processedEvent.create({ data: { id: pi.id } });
+      await db.collection("processedEvents").insertOne({ _id: pi.id as any });
     } catch {
-      // Unique constraint violation — already processed
       return new Response('Already processed', { status: 200 });
     }
 
@@ -35,12 +34,12 @@ export async function POST(req: Request) {
 
     if (meta.type === 'WALLET_TOPUP') {
       const userId = meta.userId;
-      const amountInCents = pi.amount; // authoritative — never trust client-sent metadata
+      const amountInCents = pi.amount;
       if (userId && amountInCents > 0) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { walletBalance: { increment: amountInCents } },
-        });
+        await db.collection("users").updateOne(
+          { _id: new ObjectId(userId) },
+          { $inc: { walletBalance: amountInCents } }
+        );
       }
     }
 
@@ -48,40 +47,36 @@ export async function POST(req: Request) {
       const userId = meta.userId;
       const chargeAmountCents = parseInt(meta.chargeAmountCents ?? '0', 10);
 
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          children: {
-            include: { wishlist: { select: { id: true, name: true, pointCost: true } } },
-          },
-        },
-      });
+      const user = await db.collection("users").findOne({ _id: new ObjectId(userId) });
 
       if (user && !user.isChristmasLocked) {
-        const totalCostCents = user.children.reduce((sum, child) => {
-          return sum + child.wishlist.reduce((s, toy) => s + toy.pointCost * 100, 0);
-        }, 0);
+        const children = await db.collection("children").find({ parentId: userId }).toArray();
+        const allToyIds = children.flatMap(c => (c.wishlist ?? []).map((id: string) => new ObjectId(id)));
+        const toys = allToyIds.length > 0
+          ? await db.collection("toys").find({ _id: { $in: allToyIds } }).toArray()
+          : [];
+        const toyMap = Object.fromEntries(toys.map(t => [t._id.toString(), t]));
+
+        const totalCostCents = children.reduce((sum, child) =>
+          sum + (child.wishlist ?? []).reduce((s: number, toyId: string) => s + ((toyMap[toyId]?.pointCost ?? 0) * 100), 0), 0);
         const walletDeduction = Math.max(0, totalCostCents - chargeAmountCents);
 
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            isChristmasLocked: true,
-            finalizedAt: new Date(),
-            walletBalance: { decrement: walletDeduction },
-          },
-        });
+        await db.collection("users").updateOne(
+          { _id: new ObjectId(userId) },
+          {
+            $set: { isChristmasLocked: true, finalizedAt: new Date() },
+            $inc: { walletBalance: -walletDeduction },
+          }
+        );
 
         const recipientEmail = meta.recipientEmail || pi.receipt_email;
         if (user.shippingAddress && recipientEmail) {
-          // Payment is already captured — don't crash the webhook if the email fails.
-          // The account stays locked (correct) and an admin can resend manually.
           try {
-            await sendFinalList(
-              recipientEmail,
-              user.shippingAddress,
-              user.children.map((c) => ({ name: c.name, items: c.wishlist }))
-            );
+            const childrenWithItems = children.map(c => ({
+              name: c.name,
+              items: (c.wishlist ?? []).map((id: string) => toyMap[id]).filter(Boolean).map((t: any) => ({ id: t._id.toString(), name: t.name, pointCost: t.pointCost })),
+            }));
+            await sendFinalList(recipientEmail, user.shippingAddress, childrenWithItems);
           } catch (err) {
             console.error('[webhook] CHRISTMAS_FINALIZE sendFinalList failed for', userId, err);
           }
@@ -95,17 +90,18 @@ export async function POST(req: Request) {
       const message = meta.message ?? '';
 
       if (referralCode && amountCents > 0) {
-        const parent = await prisma.user.findUnique({
-          where: { referralCode },
-          select: { id: true, email: true, children: { select: { name: true }, take: 1 } },
-        });
+        const parent = await db.collection("users").findOne({ referralCode });
 
         if (parent) {
-          await prisma.user.update({
-            where: { id: parent.id },
-            data: { walletBalance: { increment: amountCents } },
-          });
-          const firstName = parent.children[0]?.name ?? 'your child';
+          await db.collection("users").updateOne(
+            { _id: parent._id },
+            { $inc: { walletBalance: amountCents } }
+          );
+          const firstChild = await db.collection("children").findOne(
+            { parentId: parent._id.toString() },
+            { sort: { _id: 1 }, projection: { name: 1 } }
+          );
+          const firstName = firstChild?.name ?? 'your child';
           await sendMagicTipNotification(parent.email, firstName, amountCents, message);
         }
       }
@@ -114,29 +110,28 @@ export async function POST(req: Request) {
     if (meta.type === 'CHILD_REGISTRATION') {
       const { parentId, childName } = meta;
       if (parentId && childName) {
-        // Guard: don't create a duplicate-name child if the webhook fires more than once
-        // (idempotency guard above handles PI-level dupes, but be safe at child level too)
-        const alreadyExists = await prisma.child.findFirst({
-          where: { parentId, name: { equals: childName, mode: 'insensitive' } },
-          select: { id: true },
+        const alreadyExists = await db.collection("children").findOne({
+          parentId,
+          name: { $regex: new RegExp(`^${childName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
         });
         if (!alreadyExists) {
-          await prisma.child.create({
-            data: { name: childName, parentId, magicPoints: 0 },
+          await db.collection("children").insertOne({
+            name: childName,
+            parentId,
+            magicPoints: 0,
+            wishlist: [],
+            lastReset: new Date(),
           });
         }
-        const parent = await prisma.user.findUnique({
-          where: { id: parentId },
-          select: { referralCode: true },
-        });
-        if (!parent?.referralCode) {
+        const parent = await db.collection("users").findOne({ _id: new ObjectId(parentId) });
+        if (parent && !parent.referralCode) {
           const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
           const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
           const code = `FAM-${seg()}-${seg()}`;
-          await prisma.user.update({
-            where: { id: parentId },
-            data: { referralCode: code },
-          });
+          await db.collection("users").updateOne(
+            { _id: new ObjectId(parentId) },
+            { $set: { referralCode: code } }
+          );
         }
       }
     }

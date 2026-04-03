@@ -168,20 +168,25 @@ export default function ParentPortal() {
     }
   };
 
-  const handlePrintCards = () => {
+  const handlePrintCards = async () => {
     if (!referralCode) return;
-    const domain = window.location.origin;
+    const domain = "https://spiritofsanta.com";
     const url = `${domain}/magic?code=${referralCode}`;
+    const QRCode = (await import("qrcode")).default;
+    const qrDataUrl = await QRCode.toDataURL(url, { width: 120, margin: 1 });
     const win = window.open("", "_blank", "width=860,height=720");
     if (!win) return;
     // Generate 8 identical cards with the family code
     const cardsHtml = Array.from({ length: 8 }, (_, i) => `
-      <div style="border:2px solid #c0392b;border-radius:12px;padding:20px;break-inside:avoid;">
-        <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
-        <div style="font-size:15px;font-style:italic;color:#1a1a1a;margin-bottom:10px;">One of Santa's helpers did a good deed for you!</div>
-        <div style="font-size:11px;color:#555;margin-bottom:8px;">Send them a Magic Tip at:</div>
-        <div style="background:#fdf0ef;border-radius:6px;padding:10px;font-size:12px;font-weight:bold;color:#c0392b;word-break:break-all;">${url}</div>
-        <div style="font-size:10px;color:#aaa;margin-top:8px;">Code: ${referralCode}</div>
+      <div style="border:2px solid #c0392b;border-radius:12px;padding:20px;break-inside:avoid;display:flex;gap:16px;align-items:center;">
+        <img src="${qrDataUrl}" width="100" height="100" style="flex-shrink:0;border-radius:8px;" />
+        <div style="flex:1;">
+          <div style="font-size:10px;color:#c0392b;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Spirit of Santa · Card ${i + 1}</div>
+          <div style="font-size:15px;font-style:italic;color:#1a1a1a;margin-bottom:10px;">One of Santa's helpers did a good deed for you!</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px;">Send them a Magic Tip at:</div>
+          <div style="background:#fdf0ef;border-radius:6px;padding:10px;font-size:12px;font-weight:bold;color:#c0392b;word-break:break-all;">${url}</div>
+          <div style="font-size:10px;color:#aaa;margin-top:8px;">Code: ${referralCode}</div>
+        </div>
       </div>
     `).join("");
     win.document.write(`
@@ -824,7 +829,15 @@ export default function ParentPortal() {
                   </div>
                   <span className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest">Active</span>
                 </div>
-                <button className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition">
+                <button
+                  onClick={async () => {
+                    try {
+                      const r = await fetch("/api/checkout/portal", { method: "POST" });
+                      const d = await r.json();
+                      if (d.url) window.location.href = d.url;
+                    } catch (e) { console.error("Portal error:", e); }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition">
                   <ExternalLink size={16} /> Manage in Stripe
                 </button>
               </div>

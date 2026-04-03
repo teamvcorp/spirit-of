@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
@@ -11,6 +11,7 @@ export async function DELETE(
   }
 
   const { toyId } = await params;
-  await prisma.toy.delete({ where: { id: toyId } });
+  const db = await getDb();
+  await db.collection("toys").deleteOne({ _id: new ObjectId(toyId) });
   return NextResponse.json({ ok: true });
 }

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/mongodb";
 import { generateMagicCode } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -11,15 +11,16 @@ export async function POST(req: Request) {
   }
 
   const { childId, count = 8 } = await req.json();
+  const db = await getDb();
 
-  const child = await prisma.child.findFirst({
-    where: {
-      id: childId,
-      parent: { email: session.user.email },
-    },
-  });
-
+  const child = await db.collection("children").findOne({ _id: new (await import("mongodb")).ObjectId(childId) });
   if (!child) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Verify parent owns this child
+  const parent = await db.collection("users").findOne({ email: session.user.email });
+  if (!parent || child.parentId !== parent._id.toString()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
 
   for (let i = 0; i < safeCount; i++) {
     const code = generateMagicCode();
-    await prisma.goodDeed.create({
-      data: { code, childId: child.id, isConfirmed: false },
+    await db.collection("goodDeeds").insertOne({
+      code, childId: child._id.toString(), description: null, neighborNote: null, pointsEarned: 1, isConfirmed: false,
     });
     codes.push(code);
   }

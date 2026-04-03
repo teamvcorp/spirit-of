@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -13,19 +13,15 @@ export async function DELETE(
   }
 
   const { userId } = await params;
+  const db = await getDb();
 
-  const children = await prisma.child.findMany({
-    where: { parentId: userId },
-    select: { id: true },
-  });
-  const childIds = children.map((c) => c.id);
+  const children = await db.collection("children").find({ parentId: userId }).project({ _id: 1 }).toArray();
+  const childIds = children.map((c) => c._id.toString());
 
-  await prisma.$transaction([
-    prisma.dailyVote.deleteMany({ where: { childId: { in: childIds } } }),
-    prisma.goodDeed.deleteMany({ where: { childId: { in: childIds } } }),
-    prisma.child.deleteMany({ where: { parentId: userId } }),
-    prisma.user.delete({ where: { id: userId } }),
-  ]);
+  await db.collection("dailyVotes").deleteMany({ childId: { $in: childIds } });
+  await db.collection("goodDeeds").deleteMany({ childId: { $in: childIds } });
+  await db.collection("children").deleteMany({ parentId: userId });
+  await db.collection("users").deleteOne({ _id: new ObjectId(userId) });
 
   return NextResponse.json({ ok: true });
 }
@@ -43,10 +39,11 @@ export async function PATCH(
   const tempPassword = "Santa-" + randomBytes(4).toString("hex").toUpperCase();
   const hashed = await bcrypt.hash(tempPassword, 12);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: hashed },
-  });
+  const db = await getDb();
+  await db.collection("users").updateOne(
+    { _id: new ObjectId(userId) },
+    { $set: { password: hashed } }
+  );
 
   return NextResponse.json({ tempPassword });
 }

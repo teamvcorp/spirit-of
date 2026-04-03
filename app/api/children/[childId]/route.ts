@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getDb, ObjectId } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { getYearStart } from "@/lib/santa-logic";
 
@@ -9,30 +9,19 @@ export async function GET(
   const { childId } = await params;
   const yearStart = getYearStart();
 
-  // UTC start/end of today for a reliable "today's vote" query
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setUTCHours(23, 59, 59, 999);
 
+  const db = await getDb();
+
   const [child, todayVote] = await Promise.all([
-    prisma.child.findUnique({
-      where: { id: childId },
-      include: {
-        votes: {
-          where: { date: { gte: yearStart } },
-          orderBy: { date: "desc" },
-        },
-        parent: { select: { parentPin: true, isChristmasLocked: true } },
-        wishlist: { select: { id: true } },
-      },
-    }),
-    prisma.dailyVote.findFirst({
-      where: {
-        childId,
-        isPositive: true,
-        date: { gte: todayStart, lte: todayEnd },
-      },
+    db.collection("children").findOne({ _id: new ObjectId(childId) }),
+    db.collection("dailyVotes").findOne({
+      childId,
+      isPositive: true,
+      date: { $gte: todayStart, $lte: todayEnd },
     }),
   ]);
 
@@ -40,12 +29,28 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { parent, wishlist, ...childData } = child;
+  const votes = await db.collection("dailyVotes")
+    .find({ childId, date: { $gte: yearStart } })
+    .sort({ date: -1 })
+    .toArray();
+
+  const parent = await db.collection("users").findOne(
+    { _id: new ObjectId(child.parentId) },
+    { projection: { parentPin: 1, isChristmasLocked: 1 } }
+  );
+
   return NextResponse.json({
-    child: childData,
+    child: {
+      id: child._id.toString(),
+      name: child.name,
+      parentId: child.parentId,
+      magicPoints: child.magicPoints,
+      lastReset: child.lastReset,
+      votes: votes.map(v => ({ id: v._id.toString(), date: v.date, isPositive: v.isPositive, childId: v.childId })),
+    },
     hasPin: !!parent?.parentPin,
     canShopToday: !!todayVote,
-    wishlistIds: wishlist.map((t) => t.id),
+    wishlistIds: child.wishlist ?? [],
     isChristmasLocked: parent?.isChristmasLocked ?? false,
   });
 }

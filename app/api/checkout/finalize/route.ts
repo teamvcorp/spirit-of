@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import { getDb, ObjectId } from '@/lib/mongodb';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
@@ -16,24 +16,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Shipping address is required' }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { children: { include: { wishlist: { select: { pointCost: true } } } } },
-  });
+  const db = await getDb();
+  const user = await db.collection("users").findOne({ email: session.user.email });
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
   if (user.isChristmasLocked) return NextResponse.json({ error: 'Already finalized' }, { status: 400 });
 
-  // Compute amount server-side — never trust the client
-  const totalCostCents = user.children.reduce((sum, child) =>
-    sum + child.wishlist.reduce((s, toy) => s + toy.pointCost * 100, 0), 0);
-  const chargeAmountCents = Math.max(0, totalCostCents - user.walletBalance);
+  const children = await db.collection("children").find({ parentId: user._id.toString() }).toArray();
+  const toyIds = children.flatMap(c => (c.wishlist ?? []).map((id: string) => new ObjectId(id)));
+  const toys = toyIds.length > 0
+    ? await db.collection("toys").find({ _id: { $in: toyIds } }).toArray()
+    : [];
+  const toyMap = Object.fromEntries(toys.map(t => [t._id.toString(), t]));
+
+  const totalCostCents = children.reduce((sum, child) =>
+    sum + (child.wishlist ?? []).reduce((s: number, toyId: string) => s + ((toyMap[toyId]?.pointCost ?? 0) * 100), 0), 0);
+  const chargeAmountCents = Math.max(0, totalCostCents - (user.walletBalance ?? 0));
 
   if (chargeAmountCents < 50) {
     return NextResponse.json({ error: 'Nothing to charge — use wallet-only finalize' }, { status: 400 });
   }
 
-  // Save address so the webhook can use it
-  await prisma.user.update({ where: { id: user.id }, data: { shippingAddress } });
+  await db.collection("users").updateOne({ _id: user._id }, { $set: { shippingAddress } });
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: chargeAmountCents,
@@ -41,7 +44,7 @@ export async function POST(req: Request) {
     receipt_email: user.email,
     metadata: {
       type: 'CHRISTMAS_FINALIZE',
-      userId: user.id,
+      userId: user._id.toString(),
       chargeAmountCents: String(chargeAmountCents),
       recipientEmail: user.email,
     },
