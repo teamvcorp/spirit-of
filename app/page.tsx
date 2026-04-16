@@ -1,9 +1,29 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Sparkles, ShieldCheck, Gift } from "lucide-react";
 
+interface FeaturedToy {
+  id: string;
+  name: string;
+  image: string;
+}
+
 export default function LandingPage() {
+  const [featuredToys, setFeaturedToys] = useState<FeaturedToy[]>([]);
+
+  useEffect(() => {
+    fetch("/api/toys/featured")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.toys) {
+          setFeaturedToys(data.toys);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-crimson-100">
       {/* Navigation */}
@@ -62,6 +82,45 @@ export default function LandingPage() {
           />
         </div>
       </section>
+
+      {/* Featured Toys */}
+      {featuredToys.length > 0 && (
+        <section className="py-24 max-w-7xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <span className="inline-block px-4 py-1.5 mb-4 text-[10px] font-bold tracking-[0.3em] uppercase bg-slate-50 text-slate-500 rounded-full border border-slate-100">
+              Peek Inside the Workshop
+            </span>
+            <h2 className="text-4xl font-serif italic tracking-tight">A glimpse of what awaits</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {featuredToys.map((toy) => (
+              <motion.div
+                key={toy.id}
+                whileHover={{ y: -4 }}
+                className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm"
+              >
+                <div className="aspect-square bg-slate-50 overflow-hidden">
+                  {toy.image ? (
+                    <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-5xl bg-linear-to-br from-slate-50 to-slate-100">
+                      🎁
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 text-center">
+                  <h3 className="font-medium text-slate-900">{toy.name}</h3>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <div className="text-center mt-12">
+            <Link href="/register" className="text-sm font-semibold text-crimson-600 hover:text-crimson-700 transition">
+              Join to unlock the full workshop &rarr;
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="py-12 text-center text-slate-400 text-xs">
