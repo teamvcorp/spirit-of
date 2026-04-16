@@ -25,6 +25,18 @@ function isStandalone(): boolean {
   );
 }
 
+async function isAlreadyInstalled(): Promise<boolean> {
+  if (isStandalone()) return true;
+  // Chromium: getInstalledRelatedApps checks if the PWA is installed
+  if ('getInstalledRelatedApps' in navigator) {
+    try {
+      const apps = await (navigator as unknown as { getInstalledRelatedApps: () => Promise<unknown[]> }).getInstalledRelatedApps();
+      if (apps.length > 0) return true;
+    } catch { /* not supported — fall through */ }
+  }
+  return false;
+}
+
 function isIOSSafari(): boolean {
   const ua = navigator.userAgent;
   const isIOS = /iphone|ipad|ipod/i.test(ua);
@@ -39,25 +51,36 @@ export default function InstallPrompt() {
   const [showIOS, setShowIOS] = useState(false);
 
   useEffect(() => {
-    if (isStandalone() || isDismissed()) return;
+    let cancelled = false;
 
-    // Android: capture beforeinstallprompt
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setAndroidPrompt(e);
-      setShowAndroid(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
+    isAlreadyInstalled().then((installed) => {
+      if (cancelled || installed || isDismissed()) return;
 
-    // iOS Safari: show instructions after 2.5s delay
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (isIOSSafari()) {
-      timer = setTimeout(() => setShowIOS(true), 2500);
-    }
+      // Android / Desktop Chromium: capture beforeinstallprompt
+      const handler = (e: Event) => {
+        e.preventDefault();
+        setAndroidPrompt(e);
+        setShowAndroid(true);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
 
+      // iOS Safari: show instructions after 2.5s delay
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      if (isIOSSafari()) {
+        timer = setTimeout(() => setShowIOS(true), 2500);
+      }
+
+      // Cleanup inside the async callback
+      cleanupRef.current = () => {
+        window.removeEventListener('beforeinstallprompt', handler);
+        if (timer) clearTimeout(timer);
+      };
+    });
+
+    const cleanupRef = { current: () => {} };
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
-      if (timer) clearTimeout(timer);
+      cancelled = true;
+      cleanupRef.current();
     };
   }, []);
 
