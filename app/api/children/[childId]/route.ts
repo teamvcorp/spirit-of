@@ -1,6 +1,7 @@
 import { getDb, ObjectId } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { getYearStart } from "@/lib/santa-logic";
+import { normalizeWishlistItem } from "@/lib/utils";
 
 export async function GET(
   _req: Request,
@@ -39,6 +40,16 @@ export async function GET(
     { projection: { parentPin: 1, isChristmasLocked: 1 } }
   );
 
+  // Fire-and-forget: auto-lock wishlist items that have been on the list for 30+ days
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  db.collection("children").updateMany(
+    {},
+    { $set: { "wishlist.$[elem].lockedIn": true, "wishlist.$[elem].lockedAt": new Date(), "wishlist.$[elem].lockReason": "30day" } },
+    { arrayFilters: [{ "elem.addedAt": { $lte: thirtyDaysAgo }, "elem.lockedIn": { $ne: true }, "elem.toyId": { $exists: true } }] }
+  ).catch((e: unknown) => console.error("[auto-lock]", e));
+
+  const wishlistItems = (child.wishlist ?? []).map(normalizeWishlistItem);
+
   return NextResponse.json({
     child: {
       id: child._id.toString(),
@@ -50,7 +61,8 @@ export async function GET(
     },
     hasPin: !!parent?.parentPin,
     canShopToday: !!todayVote,
-    wishlistIds: child.wishlist ?? [],
+    wishlistItems,
+    wishlistIds: wishlistItems.map(w => w.toyId),
     isChristmasLocked: parent?.isChristmasLocked ?? false,
   });
 }

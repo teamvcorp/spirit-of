@@ -61,14 +61,19 @@ export async function POST(req: Request) {
 
       if (user && !user.isChristmasLocked) {
         const children = await db.collection("children").find({ parentId: userId }).toArray();
-        const allToyIds = children.flatMap(c => (c.wishlist ?? []).map((id: string) => new ObjectId(id)));
+        const allToyIds = children.flatMap(c => (c.wishlist ?? []).map((item: any) =>
+          new ObjectId(typeof item === 'string' ? item : item.toyId)
+        ));
         const toys = allToyIds.length > 0
           ? await db.collection("toys").find({ _id: { $in: allToyIds } }).toArray()
           : [];
         const toyMap = Object.fromEntries(toys.map(t => [t._id.toString(), t]));
 
         const totalCostCents = children.reduce((sum, child) =>
-          sum + (child.wishlist ?? []).reduce((s: number, toyId: string) => s + ((toyMap[toyId]?.pointCost ?? 0) * 100), 0), 0);
+          sum + (child.wishlist ?? []).reduce((s: number, item: any) => {
+            const toyId = typeof item === 'string' ? item : item.toyId;
+            return s + ((toyMap[toyId]?.pointCost ?? 0) * 100);
+          }, 0), 0);
         const walletDeduction = Math.max(0, totalCostCents - chargeAmountCents);
 
         await db.collection("users").updateOne(
@@ -84,7 +89,10 @@ export async function POST(req: Request) {
           try {
             const childrenWithItems = children.map(c => ({
               name: c.name,
-              items: (c.wishlist ?? []).map((id: string) => toyMap[id]).filter(Boolean).map((t: any) => ({ id: t._id.toString(), name: t.name, pointCost: t.pointCost })),
+              items: (c.wishlist ?? []).map((item: any) => {
+                const toyId = typeof item === 'string' ? item : item.toyId;
+                return toyMap[toyId];
+              }).filter(Boolean).map((t: any) => ({ id: t._id.toString(), name: t.name, pointCost: t.pointCost })),
             }));
             await sendFinalList(recipientEmail, user.shippingAddress, childrenWithItems);
           } catch (err) {

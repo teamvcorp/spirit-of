@@ -4,9 +4,14 @@ import { getDb, ObjectId } from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { sendFinalList } from '@/lib/mail';
 
+// Helper: normalize a raw wishlist entry to a toy ID string
+function toToyId(item: any): string {
+  return typeof item === 'string' ? item : item.toyId;
+}
+
 // Helper: resolve wishlist toy IDs to toy documents
 async function resolveWishlists(db: Awaited<ReturnType<typeof getDb>>, children: any[]) {
-  const allToyIds = children.flatMap((c: any) => (c.wishlist ?? []).map((id: string) => new ObjectId(id)));
+  const allToyIds = children.flatMap((c: any) => (c.wishlist ?? []).map((item: any) => new ObjectId(toToyId(item))));
   const toys = allToyIds.length > 0
     ? await db.collection("toys").find({ _id: { $in: allToyIds } }).toArray()
     : [];
@@ -15,7 +20,8 @@ async function resolveWishlists(db: Awaited<ReturnType<typeof getDb>>, children:
   return children.map((c: any) => ({
     id: c._id.toString(),
     name: c.name,
-    wishlist: (c.wishlist ?? []).map((id: string) => {
+    wishlist: (c.wishlist ?? []).map((item: any) => {
+      const id = toToyId(item);
       const t = toyMap[id];
       return t ? { id: t._id.toString(), name: t.name, pointCost: t.pointCost } : null;
     }).filter(Boolean) as Array<{ id: string; name: string; pointCost: number }>,

@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { Heart } from "lucide-react";
+import { Heart, Pin } from "lucide-react";
 
 interface Toy {
   id: string;
@@ -15,10 +15,11 @@ interface ToyGridProps {
   isLocked: boolean;
   canShop: boolean;
   wishlistIds: string[];
+  lockedInIds?: string[];
   onToggleWishlist: (toyId: string, add: boolean) => void;
 }
 
-export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, onToggleWishlist }: ToyGridProps) {
+export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, lockedInIds = [], onToggleWishlist }: ToyGridProps) {
   if (!canShop && !isLocked) {
     return (
       <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
@@ -30,7 +31,7 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
   if (toys.length === 0) {
     return (
       <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
-        <p className="text-slate-500 italic font-serif">The toy catalog is being restocked ‚Äî check back soon!</p>
+        <p className="text-slate-500 italic font-serif">The toy catalog is being restocked ó check back soon!</p>
       </div>
     );
   }
@@ -40,13 +41,20 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
       {toys.map((toy) => {
         const canAfford = points >= toy.price;
         const onList = wishlistIds.includes(toy.id);
+        const isLockedIn = lockedInIds.includes(toy.id);
 
         return (
           <motion.div
             key={toy.id}
             whileHover={{ y: -5 }}
             className={`group bg-white p-6 rounded-4xl border shadow-sm transition-all ${
-              isLocked ? "opacity-60 grayscale border-slate-100" : onList ? "border-crimson-300 ring-2 ring-crimson-100" : "border-slate-100"
+              isLocked
+                ? "opacity-60 grayscale border-slate-100"
+                : isLockedIn
+                ? "border-amber-300 ring-2 ring-amber-100"
+                : onList
+                ? "border-crimson-300 ring-2 ring-crimson-100"
+                : "border-slate-100"
             }`}
           >
             <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden relative">
@@ -54,7 +62,12 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
                 <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-4xl bg-linear-to-br from-slate-50 to-slate-100">
-                  üéÅ
+                  ??
+                </div>
+              )}
+              {isLockedIn && !isLocked && (
+                <div className="absolute top-2 right-2 bg-amber-400 text-white rounded-full p-1.5 shadow-md" title="Priority pick ó locked in!">
+                  <Pin size={11} className="fill-white" />
                 </div>
               )}
             </div>
@@ -65,11 +78,14 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
                 {toy.price} Points
               </span>
               <button
-                disabled={isLocked || (!canAfford && !onList)}
-                onClick={() => !isLocked && onToggleWishlist(toy.id, !onList)}
+                disabled={isLocked || isLockedIn || (!canAfford && !onList)}
+                onClick={() => !isLocked && !isLockedIn && onToggleWishlist(toy.id, !onList)}
+                title={isLockedIn ? "This item is locked in as a priority pick" : undefined}
                 className={`flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold transition-all ${
                   isLocked
                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    : isLockedIn
+                    ? "bg-amber-100 text-amber-700 cursor-default"
                     : onList
                     ? "bg-crimson-600 text-white hover:bg-crimson-700 shadow-md"
                     : canAfford
@@ -77,8 +93,14 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
                     : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 }`}
               >
-                <Heart size={12} className={onList ? "fill-white" : ""} />
-                {isLocked ? "Closed" : onList ? "On List ‚úì" : canAfford ? "Add to List" : "Need Points"}
+                {isLockedIn ? (
+                  <><Pin size={11} className="fill-current" /> Locked In</>
+                ) : (
+                  <>
+                    <Heart size={12} className={onList ? "fill-white" : ""} />
+                    {isLocked ? "Closed" : onList ? "On List ?" : canAfford ? "Add to List" : "Need Points"}
+                  </>
+                )}
               </button>
             </div>
           </motion.div>

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check, ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
 
 type Toy = { id: string; name: string; description: string; price: number; image: string };
 type UserChild = { id: string; name: string; magicPoints: number; wishlistCount: number };
 type User = { id: string; email: string; createdAt: string; walletBalance: number; shippingAddress: string; referralCode: string; isChristmasLocked: boolean; children: UserChild[]; _count: { children: number } };
+type OrderItem = { childId: string; childName: string; parentEmail: string; shippingAddress: string; toyId: string; toyName: string; toyImage: string; pointCost: number; lockedAt: string | null; lockReason: string };
 
 export default function AdminCMS() {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -25,7 +26,7 @@ export default function AdminCMS() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'toys' | 'users'>('toys');
+  const [activeTab, setActiveTab] = useState<'toys' | 'users' | 'orders'>('toys');
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [resettingUser, setResettingUser] = useState<string | null>(null);
@@ -33,11 +34,13 @@ export default function AdminCMS() {
   const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
   const [copiedUser, setCopiedUser] = useState<string | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/auth")
       .then((r) => r.json())
-      .then((d) => { setAuthed(d.ok); if (d.ok) { loadToys(); loadUsers(); } });
+      .then((d) => { setAuthed(d.ok); if (d.ok) { loadToys(); loadUsers(); loadOrders(); } });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -138,6 +141,17 @@ export default function AdminCMS() {
     setUsersLoading(false);
   };
 
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const r = await fetch("/api/admin/orders");
+      if (!r.ok) { console.error("loadOrders failed:", r.status); setOrdersLoading(false); return; }
+      const d = await r.json();
+      if (d.orders) setOrders(d.orders);
+    } catch (e) { console.error("loadOrders error:", e); }
+    setOrdersLoading(false);
+  };
+
   const handleResetPassword = async (userId: string) => {
     if (!confirm("Reset this user's password? They will need to use the temporary password to log in.")) return;
     setResettingUser(userId);
@@ -229,6 +243,19 @@ export default function AdminCMS() {
               }`}
             >
               <Users size={13} /> Users
+            </button>
+            <button
+              onClick={() => { setActiveTab('orders'); loadOrders(); }}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
+                activeTab === 'orders' ? 'bg-crimson-700 text-white' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <ClipboardList size={13} /> To Order
+              {orders.length > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === 'orders' ? 'bg-white/20 text-white' : 'bg-crimson-900 text-crimson-300'}`}>
+                  {orders.length}
+                </span>
+              )}
             </button>
           </nav>
           <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-slate-500 hover:text-red-400 transition font-medium">
@@ -363,6 +390,78 @@ export default function AdminCMS() {
                                 <p className="text-slate-600 text-sm italic">No children registered.</p>
                               )}
                             </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── To Order Tab ── */}
+        {activeTab === 'orders' && (
+          <div>
+            <div className="flex justify-between items-end mb-10">
+              <div>
+                <h2 className="text-3xl font-serif italic">To Order</h2>
+                <p className="text-slate-500 text-sm mt-1">
+                  Wishlist items locked in by children or auto-locked after 30 days on the list.
+                </p>
+              </div>
+              <button onClick={loadOrders} className="text-xs text-slate-500 hover:text-white transition font-medium">↺ Refresh</button>
+            </div>
+            {ordersLoading ? (
+              <p className="text-slate-600 text-sm italic animate-pulse">Loading…</p>
+            ) : orders.length === 0 ? (
+              <div className="text-center py-24 border border-dashed border-slate-800 rounded-2xl">
+                <p className="text-slate-600 font-serif italic text-lg">No locked items yet.</p>
+                <p className="text-slate-700 text-sm mt-2">Items appear here when manually locked or after 30 days on a wish list.</p>
+              </div>
+            ) : (
+              <div className="border border-slate-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 border-b border-slate-800">
+                    <tr>
+                      <th className="px-6 py-5">Toy</th>
+                      <th className="px-6 py-5">Child</th>
+                      <th className="px-6 py-5">Parent</th>
+                      <th className="px-6 py-5">Shipping</th>
+                      <th className="px-6 py-5">Locked</th>
+                      <th className="px-6 py-5">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {orders.map((order, i) => (
+                      <tr key={`${order.childId}-${order.toyId}-${i}`} className="hover:bg-slate-900/50 transition">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            {order.toyImage ? (
+                              <img src={order.toyImage} alt={order.toyName} className="w-9 h-9 rounded-lg object-cover border border-slate-700" />
+                            ) : (
+                              <div className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center text-lg">🎁</div>
+                            )}
+                            <div>
+                              <p className="text-white font-medium">{order.toyName}</p>
+                              <p className="text-slate-500 text-xs">{order.pointCost} pts</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 text-slate-300 font-medium">{order.childName}</td>
+                        <td className="px-6 py-5 text-slate-400 text-xs">{order.parentEmail}</td>
+                        <td className="px-6 py-5 text-slate-400 text-xs max-w-45">
+                          <p className="whitespace-pre-wrap wrap-break-word leading-relaxed">{order.shippingAddress || <span className="text-slate-600 italic">No address</span>}</p>
+                        </td>
+                        <td className="px-6 py-5 text-slate-400 text-xs whitespace-nowrap">
+                          {order.lockedAt ? new Date(order.lockedAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-6 py-5">
+                          {order.lockReason === 'manual' ? (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800 uppercase tracking-wider">Priority</span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 uppercase tracking-wider">30 Days</span>
                           )}
                         </td>
                       </tr>

@@ -9,16 +9,44 @@ import { getYearStart } from "@/lib/santa-logic";
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
   const db = await getDb();
   if (add) {
+    // Only add if not already present (handles both old string format and new object format)
+    const alreadyOn = await db.collection("children").findOne({
+      _id: new ObjectId(childId),
+      $or: [{ wishlist: toyId }, { "wishlist.toyId": toyId }],
+    });
+    if (!alreadyOn) {
+      await db.collection("children").updateOne(
+        { _id: new ObjectId(childId) },
+        { $push: { wishlist: { toyId, addedAt: new Date(), lockedIn: false } } } as any
+      );
+    }
+  } else {
+    // Remove new-format item only if not locked
     await db.collection("children").updateOne(
       { _id: new ObjectId(childId) },
-      { $addToSet: { wishlist: toyId } }
+      { $pull: { wishlist: { toyId, lockedIn: { $ne: true } } } } as any
     );
-  } else {
+    // Also remove legacy string-format entry (backward compat, strings are never locked)
     await db.collection("children").updateOne(
       { _id: new ObjectId(childId) },
       { $pull: { wishlist: toyId } } as any
     );
   }
+}
+
+export async function lockWishlistItem(childId: string, toyId: string) {
+  const db = await getDb();
+  await db.collection("children").updateOne(
+    { _id: new ObjectId(childId), "wishlist.toyId": toyId },
+    {
+      $set: {
+        "wishlist.$.lockedIn": true,
+        "wishlist.$.lockedAt": new Date(),
+        "wishlist.$.lockReason": "manual",
+      },
+    }
+  );
+  return { success: true };
 }
 
 export async function submitDailyVote(childId: string, isPositive: boolean) {

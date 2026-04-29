@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
+import { normalizeWishlistItem } from "@/lib/utils";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -26,11 +27,20 @@ export async function GET() {
     .sort({ name: 1 })
     .toArray();
 
+  // Fire-and-forget: auto-lock wishlist items that have been on the list for 30+ days
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  db.collection("children").updateMany(
+    {},
+    { $set: { "wishlist.$[elem].lockedIn": true, "wishlist.$[elem].lockedAt": new Date(), "wishlist.$[elem].lockReason": "30day" } },
+    { arrayFilters: [{ "elem.addedAt": { $lte: thirtyDaysAgo }, "elem.lockedIn": { $ne: true }, "elem.toyId": { $exists: true } }] }
+  ).catch((e: unknown) => console.error("[auto-lock]", e));
+
   const children = await Promise.all(childrenRaw.map(async (c) => {
     const votes = await db.collection("dailyVotes")
       .find({ childId: c._id.toString(), date: { $gte: yearStart } })
       .sort({ date: -1 })
       .toArray();
+    const wishlistItems = (c.wishlist ?? []).map(normalizeWishlistItem);
     return {
       id: c._id.toString(),
       name: c.name,
@@ -38,6 +48,7 @@ export async function GET() {
       magicPoints: c.magicPoints,
       lastReset: c.lastReset,
       votes: votes.map(v => ({ id: v._id.toString(), date: v.date, isPositive: v.isPositive, childId: v.childId })),
+      wishlistItems,
     };
   }));
 

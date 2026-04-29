@@ -6,11 +6,23 @@ export async function GET() {
     const db = await getDb();
 
     // Aggregate wishlist popularity: count how many children have each toy
+    // Handles both legacy string IDs and new object format { toyId, ... }
     const popularity = await db
       .collection("children")
       .aggregate<{ _id: string; count: number }>([
         { $unwind: "$wishlist" },
-        { $group: { _id: "$wishlist", count: { $sum: 1 } } },
+        {
+          $project: {
+            toyId: {
+              $cond: {
+                if: { $eq: [{ $type: "$wishlist" }, "string"] },
+                then: "$wishlist",
+                else: "$wishlist.toyId",
+              },
+            },
+          },
+        },
+        { $group: { _id: "$toyId", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ])
       .toArray();

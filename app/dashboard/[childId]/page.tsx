@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import BehaviorMeter from "@/components/BehaviorMeter";
 import ToyGrid from "@/components/ToyGrid";
 import { getMeterStats, isShopLocked } from "@/lib/santa-logic";
-import { toggleWishlistItem } from "@/app/actions";
-import { Lock, X, ShoppingBag, Heart } from "lucide-react";
+import { toggleWishlistItem, lockWishlistItem } from "@/app/actions";
+import { Lock, X, ShoppingBag, Heart, Pin } from "lucide-react";
+import type { WishlistItem } from "@/lib/utils";
 
 type Toy = { id: string; name: string; price: number; image: string };
 
@@ -26,15 +27,20 @@ export default function ChildDashboard() {
   const [hasPin, setHasPin] = useState(false);
   const [canShop, setCanShop] = useState(false);
   const [toys, setToys] = useState<Toy[]>([]);
-  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [activeTab, setActiveTab] = useState<"shop" | "wishlist">("shop");
   const [isChristmasLocked, setIsChristmasLocked] = useState(false);
+  const [lockingId, setLockingId] = useState<string | null>(null);
 
   // PIN modal state
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  // Derived lists
+  const wishlistIds = wishlistItems.map(w => w.toyId);
+  const lockedInIds = wishlistItems.filter(w => w.lockedIn).map(w => w.toyId);
 
   useEffect(() => {
     fetch(`/api/children/${childId}`)
@@ -47,7 +53,7 @@ export default function ChildDashboard() {
           setChild(data.child);
           setHasPin(data.hasPin);
           setCanShop(data.canShopToday);
-          setWishlistIds(data.wishlistIds ?? []);
+          setWishlistItems(data.wishlistItems ?? (data.wishlistIds ?? []).map((id: string) => ({ toyId: id, addedAt: new Date(0).toISOString(), lockedIn: false })));
           setIsChristmasLocked(data.isChristmasLocked ?? false);
         }
         setLoading(false);
@@ -87,9 +93,25 @@ export default function ChildDashboard() {
 
   const handleToggleWishlist = async (toyId: string, add: boolean) => {
     if (isChristmasLocked) return;
+    if (!add && lockedInIds.includes(toyId)) return; // can't remove locked items
     // Optimistic update
-    setWishlistIds((prev) => add ? [...prev, toyId] : prev.filter((id) => id !== toyId));
+    setWishlistItems((prev) =>
+      add
+        ? [...prev, { toyId, addedAt: new Date().toISOString(), lockedIn: false }]
+        : prev.filter((w) => w.toyId !== toyId)
+    );
     await toggleWishlistItem(childId, toyId, add);
+  };
+
+  const handleLockItem = async (toyId: string) => {
+    if (isChristmasLocked) return;
+    setLockingId(toyId);
+    // Optimistic update
+    setWishlistItems((prev) =>
+      prev.map((w) => w.toyId === toyId ? { ...w, lockedIn: true, lockedAt: new Date().toISOString(), lockReason: 'manual' as const } : w)
+    );
+    await lockWishlistItem(childId, toyId);
+    setLockingId(null);
   };
 
   if (loading) {
@@ -222,6 +244,7 @@ export default function ChildDashboard() {
                 isLocked={shopLocked}
                 canShop={canShop}
                 wishlistIds={wishlistIds}
+                lockedInIds={lockedInIds}
                 onToggleWishlist={handleToggleWishlist}
               />
             </motion.div>
@@ -238,31 +261,77 @@ export default function ChildDashboard() {
                   <p className="text-slate-500 italic font-serif">Your wish list is empty — add toys from the shop!</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {toys.filter((t) => wishlistIds.includes(t.id)).map((toy) => (
-                    <div key={toy.id} className="bg-white p-6 rounded-4xl border border-crimson-200 ring-2 ring-crimson-100 shadow-sm">
-                      <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden">
-                        {toy.image ? (
-                          <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-4xl">🎁</div>
-                        )}
-                      </div>
-                      <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="text-crimson-600 font-semibold tracking-tight">{toy.price} Points</span>
-                        {!isChristmasLocked && (
-                          <button
-                            onClick={() => handleToggleWishlist(toy.id, false)}
-                            className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition"
-                          >
-                            <X size={12} /> Remove
-                          </button>
-                        )}
-                      </div>
+                <>
+                  {lockedInIds.length > 0 && (
+                    <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 mb-6 text-xs font-bold">
+                      <Pin size={13} className="fill-amber-500 text-amber-500" />
+                      {lockedInIds.length} item{lockedInIds.length !== 1 ? 's' : ''} locked in — Santa has them on his priority list!
                     </div>
-                  ))}
-                </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {toys.filter((t) => wishlistIds.includes(t.id)).map((toy) => {
+                      const item = wishlistItems.find(w => w.toyId === toy.id);
+                      const isLocked = item?.lockedIn ?? false;
+                      return (
+                        <div
+                          key={toy.id}
+                          className={`bg-white p-6 rounded-4xl shadow-sm border-2 transition-all ${
+                            isLocked
+                              ? "border-amber-300 ring-2 ring-amber-100 shadow-amber-100"
+                              : "border-crimson-200 ring-2 ring-crimson-100"
+                          }`}
+                        >
+                          <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden relative">
+                            {toy.image ? (
+                              <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-4xl">🎁</div>
+                            )}
+                            {isLocked && (
+                              <div className="absolute top-2 right-2 bg-amber-400 text-white rounded-full p-1.5 shadow-md" title="Locked in!">
+                                <Pin size={12} className="fill-white" />
+                              </div>
+                            )}
+                          </div>
+                          <h3 className="font-medium text-slate-900 text-lg">{toy.name}</h3>
+                          {isLocked && (
+                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-0.5">
+                              ★ Priority Pick
+                            </p>
+                          )}
+                          <div className="flex justify-between items-center mt-3 gap-2">
+                            <span className="text-crimson-600 font-semibold tracking-tight">{toy.price} Points</span>
+                            <div className="flex gap-2">
+                              {!isChristmasLocked && !isLocked && (
+                                <button
+                                  onClick={() => handleLockItem(toy.id)}
+                                  disabled={lockingId === toy.id}
+                                  title="Lock this in as a priority pick"
+                                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-50"
+                                >
+                                  <Pin size={11} /> Lock In
+                                </button>
+                              )}
+                              {!isChristmasLocked && !isLocked && (
+                                <button
+                                  onClick={() => handleToggleWishlist(toy.id, false)}
+                                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition"
+                                >
+                                  <X size={12} /> Remove
+                                </button>
+                              )}
+                              {isLocked && (
+                                <span className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-amber-100 text-amber-700 cursor-default select-none">
+                                  <Lock size={11} /> Locked
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </motion.div>
           )}
