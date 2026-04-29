@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getYearStart } from "@/lib/santa-logic";
 
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
   const db = await getDb();
@@ -152,4 +153,64 @@ export async function sendMagicPoints(childId: string, points: number) {
   }
 
   return { success: true };
+}
+
+export async function fillMissedDays(childId: string, mode: 'nice' | 'naughty' | 'half') {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return { error: "Unauthorized" };
+
+  const db = await getDb();
+  const parent = await db.collection("users").findOne({ email: session.user.email });
+  if (!parent) return { error: "User not found" };
+
+  // Verify child belongs to this parent
+  const child = await db.collection("children").findOne({
+    _id: new ObjectId(childId),
+    parentId: parent._id.toString(),
+  });
+  if (!child) return { error: "Child not found" };
+
+  const yearStart = getYearStart();
+
+  // Only fill up to yesterday — today is still in progress
+  const todayUTC = new Date();
+  todayUTC.setUTCHours(0, 0, 0, 0);
+
+  // Build list of every day from yearStart up to (but not including) today
+  const allDays: Date[] = [];
+  const cursor = new Date(yearStart);
+  cursor.setUTCHours(0, 0, 0, 0);
+  while (cursor < todayUTC) {
+    allDays.push(new Date(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  if (allDays.length === 0) return { filled: 0 };
+
+  // Find which days already have a vote
+  const existingVotes = await db.collection("dailyVotes").find({
+    childId,
+    date: { $gte: yearStart, $lt: todayUTC },
+  }).toArray();
+
+  const votedDates = new Set(
+    existingVotes.map((v) => new Date(v.date).toISOString().slice(0, 10))
+  );
+
+  const missedDays = allDays.filter(
+    (d) => !votedDates.has(d.toISOString().slice(0, 10))
+  );
+
+  if (missedDays.length === 0) return { filled: 0 };
+
+  const docs = missedDays.map((date, index) => {
+    let isPositive: boolean;
+    if (mode === 'nice') isPositive = true;
+    else if (mode === 'naughty') isPositive = false;
+    else isPositive = index % 2 === 0; // half & half: alternating
+    return { childId, date, isPositive };
+  });
+
+  await db.collection("dailyVotes").insertMany(docs);
+  return { filled: docs.length };
 }

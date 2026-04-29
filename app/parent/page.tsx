@@ -6,13 +6,13 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Users, CreditCard, Plus, CheckCircle2,
-  XCircle, Mail, ExternalLink, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer
+  XCircle, Mail, ExternalLink, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer, CalendarDays
 } from "lucide-react";
 import Link from "next/link";
 import AddChildModal from "@/components/AddChildModal";
 import StripePaymentModal from "@/components/StripePaymentModal";
-import { submitDailyVote, setParentPin, sendMagicPoints } from "@/app/actions";
-import { getMeterStats } from "@/lib/santa-logic";
+import { submitDailyVote, setParentPin, sendMagicPoints, fillMissedDays } from "@/app/actions";
+import { getMeterStats, getYearStart } from "@/lib/santa-logic";
 
 type DbChild = {
   id: string;
@@ -39,6 +39,11 @@ export default function ParentPortal() {
   const [pointsInput, setPointsInput] = useState("");
   const [sendError, setSendError] = useState("");
   const [toppingUp, setToppingUp] = useState(false);
+  // Fill missed days
+  const [fillingDays, setFillingDays] = useState<string | null>(null); // childId
+  const [fillMode, setFillMode] = useState<'nice' | 'naughty' | 'half' | null>(null);
+  const [fillLoading, setFillLoading] = useState(false);
+  const [fillResult, setFillResult] = useState("");
   // Card order address prompt
   const [showCardAddressPrompt, setShowCardAddressPrompt] = useState(false);
   const [addrFields, setAddrFields] = useState({ fullName: '', street: '', apt: '', city: '', state: '', zip: '' });
@@ -127,6 +132,37 @@ export default function ParentPortal() {
     setSendingPoints(null);
     setPointsInput("");
     fetchChildren();
+  };
+
+  function countMissedDays(votes: { date: string }[]) {
+    const yearStart = getYearStart();
+    const todayUTC = new Date();
+    todayUTC.setUTCHours(0, 0, 0, 0);
+    const votedDates = new Set(votes.map(v => new Date(v.date).toISOString().slice(0, 10)));
+    let count = 0;
+    const cur = new Date(yearStart);
+    cur.setUTCHours(0, 0, 0, 0);
+    while (cur < todayUTC) {
+      if (!votedDates.has(cur.toISOString().slice(0, 10))) count++;
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return count;
+  }
+
+  const handleFillMissedDays = async (childId: string) => {
+    if (!fillMode) return;
+    setFillLoading(true);
+    const result = await fillMissedDays(childId, fillMode);
+    setFillLoading(false);
+    if (result?.error) { setFillResult(result.error); return; }
+    const n = (result as { filled: number }).filled;
+    setFillResult(n === 0 ? "No missed days to fill!" : `Filled ${n} missed day${n !== 1 ? 's' : ''}.`);
+    fetchChildren();
+    setTimeout(() => {
+      setFillingDays(null);
+      setFillMode(null);
+      setFillResult("");
+    }, 2500);
   };
 
   const handleTopUp = async (amountInCents: number) => {
@@ -772,6 +808,21 @@ export default function ParentPortal() {
                             <Sparkles size={16} /> Send Points
                           </button>
                           <div className="h-10 w-px bg-slate-100 mx-1" />
+                          <button
+                            onClick={() => {
+                              setFillingDays(fillingDays === child.id ? null : child.id);
+                              setFillMode(null);
+                              setFillResult("");
+                            }}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                              fillingDays === child.id
+                                ? "bg-sky-100 text-sky-700 ring-2 ring-sky-300"
+                                : "bg-sky-50 text-sky-700 hover:bg-sky-100"
+                            }`}
+                          >
+                            <CalendarDays size={16} /> Fill Missed Days
+                          </button>
+                          <div className="h-10 w-px bg-slate-100 mx-1" />
                           <Link
                             href={`/dashboard/${child.id}`}
                             target="_blank"
@@ -850,6 +901,62 @@ export default function ParentPortal() {
                               </div>
                             </motion.div>
                           )}
+                        </AnimatePresence>
+
+                        {/* FILL MISSED DAYS INLINE PANEL */}
+                        <AnimatePresence>
+                          {fillingDays === child.id && (() => {
+                            const missed = countMissedDays(child.votes);
+                            return (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                animate={{ opacity: 1, height: "auto", marginTop: 24 }}
+                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="border-t border-slate-100 pt-6 flex flex-col gap-4">
+                                  <div>
+                                    <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Fill Missed Days for {child.name}</p>
+                                    <p className="text-xs text-slate-400">
+                                      {missed === 0
+                                        ? "All days have been voted on — nothing to fill."
+                                        : <><span className="font-bold text-slate-600">{missed} unvoted day{missed !== 1 ? 's' : ''}</span> since the year started. Choose how to mark them:</>}
+                                    </p>
+                                  </div>
+                                  {missed > 0 && (
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      {([
+                                        { key: 'nice', label: '✓ All Nice', activeClass: 'bg-emerald-500 text-white ring-2 ring-emerald-300', idleClass: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                                        { key: 'half', label: '½ Half & Half', activeClass: 'bg-sky-500 text-white ring-2 ring-sky-300', idleClass: 'bg-sky-50 text-sky-700 hover:bg-sky-100' },
+                                        { key: 'naughty', label: '✗ All Naughty', activeClass: 'bg-red-500 text-white ring-2 ring-red-300', idleClass: 'bg-red-50 text-red-700 hover:bg-red-100' },
+                                      ] as const).map(({ key, label, activeClass, idleClass }) => (
+                                        <button
+                                          key={key}
+                                          onClick={() => setFillMode(key)}
+                                          className={`px-5 py-2.5 rounded-2xl font-bold text-xs transition ${fillMode === key ? activeClass : idleClass}`}
+                                        >
+                                          {label}
+                                        </button>
+                                      ))}
+                                      <button
+                                        onClick={() => handleFillMissedDays(child.id)}
+                                        disabled={!fillMode || fillLoading}
+                                        className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-2xl font-bold text-xs hover:bg-sky-700 transition disabled:opacity-40"
+                                      >
+                                        <CalendarDays size={14} />
+                                        {fillLoading ? "Filling…" : `Fill ${missed} Day${missed !== 1 ? 's' : ''}`}
+                                      </button>
+                                    </div>
+                                  )}
+                                  {fillResult && (
+                                    <p className={`text-xs font-bold ${fillResult.includes("Filled") ? "text-emerald-600" : "text-slate-500"}`}>
+                                      {fillResult}
+                                    </p>
+                                  )}
+                                </div>
+                              </motion.div>
+                            );
+                          })()}
                         </AnimatePresence>
                       </div>
                     );
