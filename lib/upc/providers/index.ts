@@ -7,8 +7,12 @@ import { goupc } from "./goupc";
  * Stage 4 — fallback priority chain. Providers are tried in order; the first
  * "sufficient" result (name + image-or-brand) wins. Insufficient or null results
  * are collected so the merge stage can still backfill individual fields.
+ *
+ * Order: Go-UPC first (best images, free for ~150 lookups/mo). When its quota is
+ * exhausted it returns a 429 → null, and the chain automatically falls back to
+ * the free UPCitemdb trial. Barcode Lookup (paid) is last, only if a key is set.
  */
-const PROVIDER_PRIORITY: Provider[] = [upcitemdb, barcodelookup, goupc];
+const PROVIDER_PRIORITY: Provider[] = [goupc, upcitemdb, barcodelookup];
 
 export interface MultiLookupResult {
   results: ProviderResult[];

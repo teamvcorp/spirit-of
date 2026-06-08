@@ -26,7 +26,7 @@ Environment Variables) for production. Use these exact names:
 | Provider | Env var(s) | Sign-up link | Cost | Notes |
 |---|---|---|---|---|
 | **UPCitemdb** | `UPCITEMDB_KEY` | https://www.upcitemdb.com/ | Free trial works with **no key**; paid plans for higher volume | Primary lookup: name, images, price. Skip the key to use the free trial endpoint. |
-| **Go-UPC** | `GO_UPC_KEY` | https://go-upc.com/api | Free tier + paid plans | Good image coverage. Token is used as a Bearer token. **Best free option to add first.** |
+| **Go-UPC** | `GO_UPC_KEY` | https://go-upc.com/api | Free for ~150 lookups/mo | **Tried first** for its better images. When the 150/mo limit is hit it returns a 429 and the pipeline automatically falls back to the free UPCitemdb trial. Bearer token. |
 | **Barcode Lookup** | `BARCODE_LOOKUP_KEY` | https://www.barcodelookup.com/api | Paid (per-lookup plans) | Broad catalog, strong images. Add later for deeper coverage. |
 | **Verified by GS1** | `GS1_VERIFY_URL` + `GS1_API_KEY` | https://www.gs1.org/services/verified-by-gs1 | Membership-based | Authoritative brand/licensee data. Requires a GS1 membership through your national GS1 office (e.g. GS1 US). Only needed for the authoritative "GS1 verified" badge. |
 
@@ -54,7 +54,11 @@ Environment Variables) for production. Use these exact names:
 
 ## How the fallback chain behaves
 
-Providers are tried in priority order (UPCitemdb → Barcode Lookup → Go-UPC) and
-the pipeline stops at the first result with a name plus an image or brand.
-Disabled providers (no key) are skipped automatically. See
+Providers are tried in priority order (**Go-UPC → UPCitemdb → Barcode Lookup**)
+and the pipeline stops at the first result with a name plus an image or brand.
+When Go-UPC's free monthly quota (~150) is used up it returns a 429, which the
+chain treats as "no result" and falls through to the free UPCitemdb trial — so
+lookups keep working with zero interruption. Disabled providers (no key) are
+skipped automatically, and results are cached for 60 days so repeat scans of the
+same product don't spend the Go-UPC quota again. See
 [lib/upc/providers/index.ts](../lib/upc/providers/index.ts).
