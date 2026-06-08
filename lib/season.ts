@@ -62,12 +62,41 @@ export async function finalizeAllFamilies(db: Db): Promise<{ finalized: number }
 }
 
 /**
- * January 1 reset — the new year begins. Unlock every finalized family so their
- * wish lists can be edited again. Leftover wallet funds are intentionally left
- * untouched so they carry into the new year. Idempotent: only locked families
- * are unlocked, so it can run safely every day in January.
+ * January 1 reset — the new year begins. For every finalized (locked) family:
+ *   - unlock the wish lists,
+ *   - clear each child's wish list,
+ *   - reset Magic Points to zero, and
+ *   - wipe the Naughty-Nice meter (this year's daily votes).
+ * The wallet balance is intentionally left untouched, so any leftover funds
+ * carry into the new year. Idempotent: only locked families are processed, so
+ * it can run safely every day in January without wiping fresh new-year activity.
  */
 export async function resetAllFamilies(db: Db): Promise<{ unlocked: number }> {
+  const lockedUsers = await db
+    .collection("users")
+    .find({ isChristmasLocked: true }, { projection: { _id: 1 } })
+    .toArray();
+  if (lockedUsers.length === 0) return { unlocked: 0 };
+
+  const parentIds = lockedUsers.map((u) => u._id.toString());
+  const children = await db
+    .collection("children")
+    .find({ parentId: { $in: parentIds } }, { projection: { _id: 1 } })
+    .toArray();
+  const childIds = children.map((c) => c._id.toString());
+
+  // Fresh start: empty wish lists, zero points, reset the reset marker.
+  await db.collection("children").updateMany(
+    { parentId: { $in: parentIds } },
+    { $set: { wishlist: [], magicPoints: 0, lastReset: new Date() } },
+  );
+
+  // Wipe the Naughty-Nice meter (daily behavior votes).
+  if (childIds.length > 0) {
+    await db.collection("dailyVotes").deleteMany({ childId: { $in: childIds } });
+  }
+
+  // Unlock — wallet balance is left as-is so leftover funds roll over.
   const res = await db.collection("users").updateMany(
     { isChristmasLocked: true },
     { $set: { isChristmasLocked: false, finalizedAt: null } },

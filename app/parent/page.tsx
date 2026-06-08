@@ -808,9 +808,9 @@ export default function ParentPortal() {
                 </p>
                 <p className="mt-1.5 leading-relaxed text-[13px]">
                   {isChristmasLocked
-                    ? "They’re locked now and unlock automatically on January 1, when the new year begins. "
-                    : "No button needed — on December 1 every list locks in for Santa, then unlocks again on January 1 for the new year. Make sure your Christmas budget is funded before December 1. "}
-                  Your wallet balance is applied automatically to cover the gifts, so you&apos;re never overcharged &mdash; and any leftover funds stay in your wallet for next year.
+                    ? "They’re locked now and reset automatically on January 1. "
+                    : "No button needed — on December 1 every list locks in for Santa, then resets on January 1 for the new year. Make sure your Christmas budget is funded before December 1. "}
+                  Your wallet balance is applied automatically to cover the gifts, so you&apos;re never overcharged. On January 1 the wish lists, Magic Points, and the Naughty-Nice meter all start fresh for the new year &mdash; only your wallet balance carries over.
                 </p>
               </div>
 
