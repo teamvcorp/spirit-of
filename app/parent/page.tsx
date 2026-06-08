@@ -395,14 +395,8 @@ export default function ParentPortal() {
     }
   };
 
-  const isFinalizeVisible = (() => {
-    const now = new Date();
-    const month = now.getMonth(); // 0-indexed, 11 = December
-    const day = now.getDate();
-    // Show Dec 1 through Dec 25; hide Dec 26+ (Christmas is over)
-    return (month === 11 && day >= 1 && day <= 25);
-  })();
-
+  // NOTE: Finalize is now automated (Dec 1) via /api/cron/season. The handlers
+  // and modal below are retained but no longer triggered from the UI.
   const handleOpenFinalize = async () => {
     setFinalizeError("");
     setFinalizeStep("warning");
@@ -792,19 +786,10 @@ export default function ParentPortal() {
                   <p className="text-slate-400 text-sm">Update their daily meter and manage points.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {isFinalizeVisible && (
-                    isChristmasLocked ? (
-                      <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-6 py-4 rounded-full text-sm font-bold border border-emerald-200">
-                        <Gift size={16} /> Lists Submitted ✓
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleOpenFinalize}
-                        className="flex items-center gap-2 bg-crimson-600 text-white px-8 py-4 rounded-full text-sm font-bold hover:bg-crimson-700 transition shadow-lg shadow-crimson-200 animate-pulse hover:animate-none"
-                      >
-                        <Gift size={16} /> Finalize Christmas
-                      </button>
-                    )
+                  {isChristmasLocked && (
+                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-6 py-4 rounded-full text-sm font-bold border border-emerald-200">
+                      <Gift size={16} /> Finalized · unlocks Jan 1
+                    </div>
                   )}
                   <button
                     onClick={() => setIsAddChildModalOpen(true)}
@@ -813,6 +798,20 @@ export default function ParentPortal() {
                     <Plus size={16} /> Add Child
                   </button>
                 </div>
+              </div>
+
+              {/* Season automation notice */}
+              <div className={`mb-10 rounded-3xl px-6 py-5 border ${isChristmasLocked ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-100 text-amber-800"}`}>
+                <p className="font-bold flex items-center gap-2 text-sm">
+                  <CalendarDays size={15} />
+                  {isChristmasLocked ? "Wish lists are finalized for the holidays" : "Wish lists finalize automatically on December 1"}
+                </p>
+                <p className="mt-1.5 leading-relaxed text-[13px]">
+                  {isChristmasLocked
+                    ? "They’re locked now and unlock automatically on January 1, when the new year begins. "
+                    : "No button needed — on December 1 every list locks in for Santa, then unlocks again on January 1 for the new year. Make sure your Christmas budget is funded before December 1. "}
+                  Your wallet balance is applied automatically to cover the gifts, so you&apos;re never overcharged &mdash; and any leftover funds stay in your wallet for next year.
+                </p>
               </div>
 
               {loading ? (

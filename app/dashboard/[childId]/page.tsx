@@ -287,7 +287,13 @@ export default function ChildDashboard() {
               {isChristmasLocked && (
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-3xl px-8 py-5 mb-8 text-sm font-semibold">
                   <span className="text-2xl">🎁</span>
-                  <span>Your wish list has been sent to Santa! No more changes until after Christmas.</span>
+                  <span>Your wish list is locked in and on its way to Santa! It opens back up on January 1, when the new year begins. 🎄</span>
+                </div>
+              )}
+              {!isChristmasLocked && (
+                <div className="flex items-center gap-3 bg-crimson-50 border border-crimson-100 text-crimson-700 rounded-3xl px-6 py-4 mb-8 text-xs font-semibold">
+                  <span className="text-lg">✨</span>
+                  <span>Add your favorites before <strong>December 1</strong> — that&apos;s when Santa seals every wish list for the holidays!</span>
                 </div>
               )}
               {wishlistIds.length === 0 ? (
