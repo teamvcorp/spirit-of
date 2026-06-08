@@ -186,7 +186,8 @@ export default function ChildDashboard() {
               className={`w-full text-center tracking-[1rem] text-2xl py-4 bg-slate-50 rounded-2xl border-2 transition outline-none ${
                 pinError ? "border-red-300 bg-red-50" : "border-transparent focus:border-crimson-400"
               }`}
-              placeholder="\u2022\u2022\u2022\u2022"
+              placeholder={"\u2022\u2022\u2022\u2022"}
+              autoComplete="off"
               autoFocus
             />
             {pinError && (

@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Users, CreditCard, Plus, CheckCircle2,
-  XCircle, Mail, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer, CalendarDays
+  XCircle, Mail, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer, CalendarDays, Menu
 } from "lucide-react";
 import Link from "next/link";
 import AddChildModal from "@/components/AddChildModal";
@@ -24,6 +24,7 @@ type DbChild = {
 
 export default function ParentPortal() {
   const [activeTab, setActiveTab] = useState("kids");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAddChildModalOpen, setIsAddChildModalOpen] = useState(false);
   const [kids, setKids] = useState<DbChild[]>([]);
   const [loading, setLoading] = useState(true);
@@ -614,13 +615,27 @@ export default function ParentPortal() {
         </div>
       )}
 
+      {/* Mobile drawer backdrop */}
+      {sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden" />
+      )}
+
       {/* SIDEBAR */}
-      <aside className="w-72 bg-white border-r border-slate-100 p-10 flex flex-col justify-between fixed h-full">
+      <aside
+        className={`fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white border-r border-slate-100 p-10 flex flex-col justify-between z-40 transform transition-transform duration-300 lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div>
-          <div className="text-2xl font-serif italic font-bold mb-12 tracking-tight text-crimson-700">Parent Portal</div>
+          <div className="flex items-center justify-between mb-12">
+            <div className="text-2xl font-serif italic font-bold tracking-tight text-crimson-700">Parent Portal</div>
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-300 hover:text-slate-600 transition" aria-label="Close menu">
+              <X size={22} />
+            </button>
+          </div>
           <nav className="space-y-2">
-            <NavButton active={activeTab === "kids"} onClick={() => setActiveTab("kids")} icon={<Users size={18} />} label="My Children" />
-            <NavButton active={activeTab === "billing"} onClick={() => setActiveTab("billing")} icon={<CreditCard size={18} />} label="Billing" />
+            <NavButton active={activeTab === "kids"} onClick={() => { setActiveTab("kids"); setSidebarOpen(false); }} icon={<Users size={18} />} label="My Children" />
+            <NavButton active={activeTab === "billing"} onClick={() => { setActiveTab("billing"); setSidebarOpen(false); }} icon={<CreditCard size={18} />} label="Billing" />
           </nav>
         </div>
 
@@ -631,7 +646,7 @@ export default function ParentPortal() {
             </p>
             <p className={`text-lg font-bold ${walletBalance > 0 ? 'text-emerald-700' : 'text-crimson-700'}`}>${(walletBalance / 100).toFixed(2)}</p>
             <button
-              onClick={() => setActiveTab("billing")}
+              onClick={() => { setActiveTab("billing"); setSidebarOpen(false); }}
               className={`text-[10px] ${walletBalance > 0 ? 'text-emerald-500 hover:text-emerald-700' : 'text-crimson-400 hover:text-crimson-600'} mt-1 font-semibold transition`}
             >
               Add funds →
@@ -656,7 +671,16 @@ export default function ParentPortal() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 ml-72 p-16">
+      <main className="flex-1 min-w-0 lg:ml-72 p-5 sm:p-10 lg:p-16">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center justify-between mb-6">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-slate-700" aria-label="Open menu">
+            <Menu size={24} />
+          </button>
+          <span className="text-lg font-serif italic font-bold text-crimson-700">Parent Portal</span>
+          <div className="w-8" />
+        </div>
+
         <AddChildModal isOpen={isAddChildModalOpen} onClose={() => setIsAddChildModalOpen(false)} onSuccess={fetchChildren} />
 
         {stripeModal && (
@@ -755,12 +779,12 @@ export default function ParentPortal() {
           {/* CHILDREN TAB */}
           {activeTab === "kids" && (
             <motion.div key="kids" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-              <div className="flex justify-between items-end mb-12">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-12">
                 <div>
-                  <h1 className="text-4xl font-serif italic mb-2">Your Children</h1>
+                  <h1 className="text-3xl sm:text-4xl font-serif italic mb-2">Your Children</h1>
                   <p className="text-slate-400 text-sm">Update their daily meter and manage points.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {isFinalizeVisible && (
                     isChristmasLocked ? (
                       <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-6 py-4 rounded-full text-sm font-bold border border-emerald-200">
@@ -801,7 +825,7 @@ export default function ParentPortal() {
                     const todayIsNice = todayVote?.isPositive;
                     const yearStatus = percentage >= 50 ? "Nice" : "Naughty";
                     return (
-                      <div key={child.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 shadow-sm group hover:border-crimson-200 transition-colors">
+                      <div key={child.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 sm:p-10 shadow-sm group hover:border-crimson-200 transition-colors">
                         <div className="flex justify-between items-center">
                           <div className="flex gap-8 items-center">
                           <div className="w-16 h-16 bg-silver-100 rounded-full flex items-center justify-center text-2xl font-serif italic text-crimson-600 border border-crimson-100">
@@ -1101,10 +1125,10 @@ export default function ParentPortal() {
           {/* BILLING TAB */}
           {activeTab === "billing" && (
             <motion.div key="billing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <h1 className="text-4xl font-serif italic mb-12">Billing & Account</h1>
+              <h1 className="text-3xl sm:text-4xl font-serif italic mb-8 sm:mb-12">Billing & Account</h1>
 
               {/* WALLET */}
-              <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-10 mb-8">
+              <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-6 sm:p-10 mb-8">
                 <div className="flex justify-between items-start mb-8 pb-8 border-b border-slate-50">
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -1132,7 +1156,7 @@ export default function ParentPortal() {
               </div>
 
               {/* CHRISTMAS BUDGET PLAN */}
-              <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-10">
+              <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-6 sm:p-10">
                 <div className="flex justify-between items-center mb-8 pb-8 border-b border-slate-50">
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
