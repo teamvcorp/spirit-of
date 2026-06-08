@@ -203,20 +203,27 @@ export default function ParentPortal() {
 
   const handlePayInstallment = async () => {
     if (!christmasPlan) return;
+    setPlanError("");
     try {
-      const res = await fetch("/api/checkout/plan-payment", {
+      const res = await fetch("/api/christmas-plan/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amountCents: christmasPlan.installmentCents }),
       });
       const data = await res.json();
-      if (!data.clientSecret) { setPlanError(data.error ?? "Couldn't start the payment."); return; }
-      const amt = data.amountInCents ?? christmasPlan.installmentCents;
+      if (!res.ok) { setPlanError(data.error ?? "Couldn't start the payment."); return; }
+
+      // Fully covered by wallet funds — no card needed.
+      if (data.done) { await fetchChildren(); return; }
+
+      // Remaining shortfall goes through Stripe.
+      const stripeAmt = data.fromStripeCents ?? 0;
+      const walletNote = data.fromWalletCents > 0 ? ` ($${(data.fromWalletCents / 100).toFixed(2)} applied from your wallet)` : "";
       setStripeModal({
         clientSecret: data.clientSecret,
         title: "Christmas Budget Payment",
-        description: `Paying $${(amt / 100).toFixed(2)} toward your Christmas budget.`,
-        submitLabel: `Pay $${(amt / 100).toFixed(2)}`,
+        description: `Paying $${(stripeAmt / 100).toFixed(2)} toward your Christmas budget${walletNote}.`,
+        submitLabel: `Pay $${(stripeAmt / 100).toFixed(2)}`,
         onSuccess: () => {
           setStripeModal(null);
           let attempts = 0;
@@ -826,9 +833,9 @@ export default function ParentPortal() {
                     const yearStatus = percentage >= 50 ? "Nice" : "Naughty";
                     return (
                       <div key={child.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 sm:p-10 shadow-sm group hover:border-crimson-200 transition-colors">
-                        <div className="flex justify-between items-center">
-                          <div className="flex gap-8 items-center">
-                          <div className="w-16 h-16 bg-silver-100 rounded-full flex items-center justify-center text-2xl font-serif italic text-crimson-600 border border-crimson-100">
+                        <div className="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-5">
+                          <div className="flex gap-4 sm:gap-6 items-center">
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 bg-silver-100 rounded-full flex items-center justify-center text-2xl font-serif italic text-crimson-600 border border-crimson-100">
                             {child.name[0]}
                           </div>
                           <div>
@@ -853,11 +860,11 @@ export default function ParentPortal() {
                           </div>
                         </div>
 
-                        <div className="flex gap-3 items-center">
+                        <div className="flex flex-wrap gap-2 items-center">
                           <button
                             onClick={() => handleVote(child.id, true)}
                             disabled={votedToday}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                            className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-2xl font-bold text-xs transition ${
                               votedToday && todayIsNice
                                 ? "bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300 cursor-default"
                                 : votedToday
@@ -870,7 +877,7 @@ export default function ParentPortal() {
                           <button
                             onClick={() => handleVote(child.id, false)}
                             disabled={votedToday}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                            className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-2xl font-bold text-xs transition ${
                               votedToday && !todayIsNice
                                 ? "bg-red-100 text-red-700 ring-2 ring-red-300 cursor-default"
                                 : votedToday
@@ -880,14 +887,14 @@ export default function ParentPortal() {
                           >
                             <XCircle size={16} /> Naughty
                           </button>
-                          <div className="h-10 w-px bg-slate-100 mx-1" />
+                          <div className="hidden sm:block h-10 w-px bg-slate-100 mx-1" />
                           <button
                             onClick={() => {
                               setSendingPoints(sendingPoints === child.id ? null : child.id);
                               setPointsInput("");
                               setSendError("");
                             }}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                            className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-2xl font-bold text-xs transition ${
                               sendingPoints === child.id
                                 ? "bg-amber-100 text-amber-700 ring-2 ring-amber-300"
                                 : "bg-amber-50 text-amber-700 hover:bg-amber-100"
@@ -895,14 +902,14 @@ export default function ParentPortal() {
                           >
                             <Sparkles size={16} /> Send Points
                           </button>
-                          <div className="h-10 w-px bg-slate-100 mx-1" />
+                          <div className="hidden sm:block h-10 w-px bg-slate-100 mx-1" />
                           <button
                             onClick={() => {
                               setFillingDays(fillingDays === child.id ? null : child.id);
                               setFillMode(null);
                               setFillResult("");
                             }}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition ${
+                            className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-2xl font-bold text-xs transition ${
                               fillingDays === child.id
                                 ? "bg-sky-100 text-sky-700 ring-2 ring-sky-300"
                                 : "bg-sky-50 text-sky-700 hover:bg-sky-100"
@@ -910,7 +917,7 @@ export default function ParentPortal() {
                           >
                             <CalendarDays size={16} /> Fill Missed Days
                           </button>
-                          <div className="h-10 w-px bg-slate-100 mx-1" />
+                          <div className="hidden sm:block h-10 w-px bg-slate-100 mx-1" />
                           <Link
                             href={`/dashboard/${child.id}`}
                             target="_blank"
@@ -1176,7 +1183,7 @@ export default function ParentPortal() {
                 {!christmasPlan ? (
                   <div>
                     <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                      Set what you can comfortably afford for Christmas. We split it into equal monthly payments due by <span className="font-semibold text-slate-700">November 1</span> — and every good deed your kids do brings in community gifts that lower your payments. The budget also caps what the kids can spend, so they never wish beyond what you can afford.
+                      Set what you can comfortably afford for Christmas. We split it into equal monthly payments due by <span className="font-semibold text-slate-700">November 28</span>, just before the wish lists lock — and every good deed your kids do brings in community gifts that lower your payments. The budget also caps what the kids can spend, so they never wish beyond what you can afford.
                     </p>
                     <label className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-2 block">Annual Christmas Budget</label>
                     <div className="flex gap-3">

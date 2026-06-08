@@ -3,16 +3,17 @@
  *
  * A parent sets an annual budget they can afford. The system spreads what the
  * parent still owes into equal monthly installments that complete by the
- * deadline (November 1). Community good-deed contributions (Magic tips earned
+ * deadline (November 28 — just before the wish lists lock). November itself is
+ * a valid payment month. Community good-deed contributions (Magic tips earned
  * through the kids' good deeds) reduce what the parent owes, so doing good
  * literally lowers the parent's monthly payment.
  *
  * Pure + dependency-free so it can run on both server and client.
  */
 
-/** Budget must be fully funded by November 1 of the Christmas year. */
+/** Budget must be fully funded by November 28 — just before the wish lists lock. */
 export const PLAN_DEADLINE_MONTH = 10; // 0-indexed → November
-export const PLAN_DEADLINE_DAY = 1;
+export const PLAN_DEADLINE_DAY = 28;
 
 export interface ChristmasPlan {
   year: number;
@@ -54,10 +55,13 @@ export function getPlanDeadline(year: number): Date {
   return new Date(year, PLAN_DEADLINE_MONTH, PLAN_DEADLINE_DAY);
 }
 
-/** Whole months from `now` until the deadline, floored at 1 so we never divide by zero. */
+/**
+ * Number of monthly payments from `now` through the deadline month, inclusive
+ * (so November counts as a payment month). Floored at 1 so we never divide by zero.
+ */
 export function monthsUntilDeadline(now: Date, deadline: Date): number {
   const months =
-    (deadline.getFullYear() - now.getFullYear()) * 12 + (deadline.getMonth() - now.getMonth());
+    (deadline.getFullYear() - now.getFullYear()) * 12 + (deadline.getMonth() - now.getMonth()) + 1;
   return Math.max(1, months);
 }
 
