@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { sendOrderConfirmation, sendFinalList, sendMagicTipNotification } from "@/lib/mail";
 import { getDb, ObjectId } from "@/lib/mongodb";
+import { getChristmasYear } from "@/lib/christmas-plan";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
@@ -49,6 +50,22 @@ export async function POST(req: Request) {
         await db.collection("users").updateOne(
           { _id: new ObjectId(userId) },
           { $inc: { walletBalance: amountInCents } }
+        );
+      }
+    }
+
+    if (meta.type === 'CHRISTMAS_PLAN_PAYMENT') {
+      const userId = meta.userId;
+      const amountInCents = pi.amount;
+      if (userId && amountInCents > 0) {
+        // Funds land in the wallet (to pay for gifts) and count as parent contribution.
+        await db.collection("users").updateOne(
+          { _id: new ObjectId(userId) },
+          { $inc: { walletBalance: amountInCents } }
+        );
+        await db.collection("users").updateOne(
+          { _id: new ObjectId(userId), "christmasPlan.year": { $exists: true } },
+          { $inc: { "christmasPlan.parentPaidCents": amountInCents } }
         );
       }
     }
@@ -114,6 +131,12 @@ export async function POST(req: Request) {
           await db.collection("users").updateOne(
             { _id: parent._id },
             { $inc: { walletBalance: amountCents } }
+          );
+          // Good-deed money offsets the parent's Christmas budget for this cycle,
+          // lowering their remaining installments. No-op if they have no plan.
+          await db.collection("users").updateOne(
+            { _id: parent._id, "christmasPlan.year": getChristmasYear() },
+            { $inc: { "christmasPlan.communityCents": amountCents } }
           );
           const firstChild = await db.collection("children").findOne(
             { parentId: parent._id.toString() },

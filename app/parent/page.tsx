@@ -6,13 +6,14 @@ import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Users, CreditCard, Plus, CheckCircle2,
-  XCircle, Mail, ExternalLink, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer, CalendarDays
+  XCircle, Mail, LayoutDashboard, Lock, X, Sparkles, Wallet, Gift, AlertTriangle, Printer, CalendarDays
 } from "lucide-react";
 import Link from "next/link";
 import AddChildModal from "@/components/AddChildModal";
 import StripePaymentModal from "@/components/StripePaymentModal";
 import { submitDailyVote, setParentPin, sendMagicPoints, fillMissedDays } from "@/app/actions";
 import { getMeterStats, getYearStart } from "@/lib/santa-logic";
+import type { PlanSummary } from "@/lib/christmas-plan";
 
 type DbChild = {
   id: string;
@@ -39,6 +40,12 @@ export default function ParentPortal() {
   const [pointsInput, setPointsInput] = useState("");
   const [sendError, setSendError] = useState("");
   const [toppingUp, setToppingUp] = useState(false);
+  // Christmas budget plan
+  const [christmasPlan, setChristmasPlan] = useState<PlanSummary | null>(null);
+  const [pointsAllocated, setPointsAllocated] = useState(0);
+  const [budgetInput, setBudgetInput] = useState("");
+  const [savingBudget, setSavingBudget] = useState(false);
+  const [planError, setPlanError] = useState("");
   // Fill missed days
   const [fillingDays, setFillingDays] = useState<string | null>(null); // childId
   const [fillMode, setFillMode] = useState<'nice' | 'naughty' | 'half' | null>(null);
@@ -83,6 +90,8 @@ export default function ParentPortal() {
       setHasPin(!!data.hasPin);
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
+      setChristmasPlan(data.christmasPlan ?? null);
+      setPointsAllocated(data.pointsAllocated ?? 0);
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -98,6 +107,8 @@ export default function ParentPortal() {
       setHasPin(!!data.hasPin);
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
+      setChristmasPlan(data.christmasPlan ?? null);
+      setPointsAllocated(data.pointsAllocated ?? 0);
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -163,6 +174,59 @@ export default function ParentPortal() {
       setFillMode(null);
       setFillResult("");
     }, 2500);
+  };
+
+  const handleSetBudget = async () => {
+    setPlanError("");
+    const dollars = parseFloat(budgetInput);
+    if (!Number.isFinite(dollars) || dollars < 1) { setPlanError("Enter a budget of at least $1."); return; }
+    setSavingBudget(true);
+    try {
+      const r = await fetch("/api/christmas-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgetCents: Math.round(dollars * 100) }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setPlanError(d.error ?? "Couldn't save your budget."); }
+      else { setBudgetInput(""); await fetchChildren(); }
+    } catch { setPlanError("Something went wrong. Try again."); }
+    setSavingBudget(false);
+  };
+
+  const handleCancelPlan = async () => {
+    if (!confirm("Cancel your Christmas budget plan? This removes the spending cap.")) return;
+    await fetch("/api/christmas-plan", { method: "DELETE" });
+    fetchChildren();
+  };
+
+  const handlePayInstallment = async () => {
+    if (!christmasPlan) return;
+    try {
+      const res = await fetch("/api/checkout/plan-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents: christmasPlan.installmentCents }),
+      });
+      const data = await res.json();
+      if (!data.clientSecret) { setPlanError(data.error ?? "Couldn't start the payment."); return; }
+      const amt = data.amountInCents ?? christmasPlan.installmentCents;
+      setStripeModal({
+        clientSecret: data.clientSecret,
+        title: "Christmas Budget Payment",
+        description: `Paying $${(amt / 100).toFixed(2)} toward your Christmas budget.`,
+        submitLabel: `Pay $${(amt / 100).toFixed(2)}`,
+        onSuccess: () => {
+          setStripeModal(null);
+          let attempts = 0;
+          const poll = setInterval(async () => {
+            attempts++;
+            await fetchChildren();
+            if (attempts >= 5) clearInterval(poll);
+          }, 1200);
+        },
+      });
+    } catch { setPlanError("Something went wrong. Try again."); }
   };
 
   const handleTopUp = async (amountInCents: number) => {
@@ -1067,26 +1131,119 @@ export default function ParentPortal() {
                 <p className="text-[10px] text-slate-300 text-center">Secured by Stripe · funds are non-refundable once allocated to a child</p>
               </div>
 
-              {/* SUBSCRIPTION */}
+              {/* CHRISTMAS BUDGET PLAN */}
               <div className="max-w-xl bg-white border border-slate-100 rounded-[2.5rem] p-10">
                 <div className="flex justify-between items-center mb-8 pb-8 border-b border-slate-50">
                   <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Current Plan</p>
-                    <p className="text-xl font-medium">Santa&apos;s Helper SaaS</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <CalendarDays size={12} /> Christmas Budget Plan
+                    </p>
+                    <p className="text-xl font-medium">
+                      {christmasPlan ? `$${(christmasPlan.budgetCents / 100).toFixed(2)} budget` : "Not set up yet"}
+                    </p>
                   </div>
-                  <span className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest">Active</span>
+                  {christmasPlan && (
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${christmasPlan.complete ? "bg-emerald-50 text-emerald-600" : "bg-crimson-50 text-crimson-600"}`}>
+                      {christmasPlan.complete ? "Funded" : "Active"}
+                    </span>
+                  )}
                 </div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const r = await fetch("/api/checkout/portal", { method: "POST" });
-                      const d = await r.json();
-                      if (d.url) window.location.href = d.url;
-                    } catch (e) { console.error("Portal error:", e); }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition">
-                  <ExternalLink size={16} /> Manage in Stripe
-                </button>
+
+                {!christmasPlan ? (
+                  <div>
+                    <p className="text-sm text-slate-500 leading-relaxed mb-6">
+                      Set what you can comfortably afford for Christmas. We split it into equal monthly payments due by <span className="font-semibold text-slate-700">November 1</span> — and every good deed your kids do brings in community gifts that lower your payments. The budget also caps what the kids can spend, so they never wish beyond what you can afford.
+                    </p>
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-2 block">Annual Christmas Budget</label>
+                    <div className="flex gap-3">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                        <input
+                          type="number" min="1" step="1" value={budgetInput}
+                          onChange={(e) => { setBudgetInput(e.target.value); setPlanError(""); }}
+                          placeholder="600"
+                          className="w-full pl-8 pr-4 py-3.5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent focus:border-crimson-400 transition text-slate-900 placeholder:text-slate-400"
+                        />
+                      </div>
+                      <button onClick={handleSetBudget} disabled={savingBudget} className="bg-crimson-600 text-white px-6 rounded-2xl font-bold text-sm hover:bg-crimson-700 transition disabled:opacity-50">
+                        {savingBudget ? "Saving…" : "Create plan"}
+                      </button>
+                    </div>
+                    {planError && <p className="text-red-500 text-xs mt-2">{planError}</p>}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Progress */}
+                    <div>
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="font-bold text-slate-500">${(christmasPlan.fundedCents / 100).toFixed(2)} funded</span>
+                        <span className="text-slate-400">of ${(christmasPlan.budgetCents / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div className="bg-crimson-500 h-full" style={{ width: `${Math.min(100, (christmasPlan.parentPaidCents / christmasPlan.budgetCents) * 100)}%` }} title="Your payments" />
+                        <div className="bg-emerald-400 h-full" style={{ width: `${Math.min(100, (christmasPlan.communityCents / christmasPlan.budgetCents) * 100)}%` }} title="Good-deed gifts" />
+                      </div>
+                      <div className="flex gap-4 mt-2 text-[10px] font-semibold">
+                        <span className="flex items-center gap-1 text-crimson-600"><span className="w-2 h-2 rounded-full bg-crimson-500" /> You ${(christmasPlan.parentPaidCents / 100).toFixed(2)}</span>
+                        <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Good deeds ${(christmasPlan.communityCents / 100).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Good-deed offset highlight */}
+                    {christmasPlan.communityCents > 0 && (
+                      <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-sm text-emerald-800">
+                        <Sparkles size={15} className="text-emerald-500 shrink-0" />
+                        <span>Your kids&apos; good deeds have brought in <span className="font-bold">${(christmasPlan.communityCents / 100).toFixed(2)}</span> — that&apos;s money off your payments!</span>
+                      </div>
+                    )}
+
+                    {/* Installment + pay */}
+                    {christmasPlan.complete ? (
+                      <p className="text-center text-emerald-700 font-semibold text-sm bg-emerald-50 rounded-2xl py-4">🎄 Fully funded — you&apos;re all set for Christmas!</p>
+                    ) : (
+                      <div className="bg-slate-50 rounded-2xl p-5">
+                        <div className="flex justify-between items-end mb-4">
+                          <div>
+                            <p className="text-2xl font-serif font-bold text-slate-900">${(christmasPlan.installmentCents / 100).toFixed(2)}<span className="text-sm font-sans font-medium text-slate-400">/mo</span></p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {christmasPlan.installmentCount} payment{christmasPlan.installmentCount !== 1 ? "s" : ""} left · ${(christmasPlan.remainingCents / 100).toFixed(2)} to go
+                            </p>
+                          </div>
+                          <p className="text-[10px] text-slate-400 text-right">Done by<br /><span className="font-bold text-slate-600">{new Date(christmasPlan.deadline).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span></p>
+                        </div>
+                        <button onClick={handlePayInstallment} className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-bold text-sm hover:bg-crimson-600 transition">
+                          Pay ${(christmasPlan.installmentCents / 100).toFixed(2)} now
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Spending cap status */}
+                    <div className="text-xs text-slate-500 border border-slate-100 rounded-2xl px-4 py-3">
+                      <span className="font-semibold text-slate-600">Kids&apos; Christmas spending:</span> {pointsAllocated} of {christmasPlan.budgetPoints} points allocated
+                      {pointsAllocated >= christmasPlan.budgetPoints && <span className="text-crimson-600 font-semibold"> · budget reached</span>}
+                    </div>
+
+                    {planError && <p className="text-red-500 text-xs">{planError}</p>}
+
+                    <div className="flex items-center justify-between pt-2">
+                      <button onClick={handleCancelPlan} className="text-xs text-slate-400 hover:text-red-500 font-semibold transition">Cancel plan</button>
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">$</span>
+                          <input
+                            type="number" min="1" value={budgetInput}
+                            onChange={(e) => { setBudgetInput(e.target.value); setPlanError(""); }}
+                            placeholder="New budget"
+                            className="w-32 pl-6 pr-2 py-2 bg-slate-50 rounded-xl text-xs outline-none border border-slate-200 focus:border-crimson-400 transition text-slate-900 placeholder:text-slate-400"
+                          />
+                        </div>
+                        <button onClick={handleSetBudget} disabled={savingBudget || !budgetInput} className="text-xs bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition disabled:opacity-50">
+                          {savingBudget ? "…" : "Update"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getYearStart } from "@/lib/santa-logic";
+import { getChristmasYear, type ChristmasPlan } from "@/lib/christmas-plan";
 
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
   const db = await getDb();
@@ -162,12 +163,34 @@ export async function sendMagicPoints(childId: string, points: number) {
     return { error: "Insufficient wallet balance" };
   }
 
+  // Christmas budget cap: a parent can't allocate more total Magic Points to
+  // their kids this cycle than their budget covers ($1 = 1 point). Only enforced
+  // when a plan exists for the current Christmas year.
+  const plan = parent.christmasPlan as ChristmasPlan | undefined;
+  const christmasYear = getChristmasYear();
+  const capActive = !!plan && plan.year === christmasYear;
+  if (capActive) {
+    const budgetPoints = Math.floor(plan!.budgetCents / 100);
+    const allocated = (parent.christmasPointsAllocated?.[String(christmasYear)] as number | undefined) ?? 0;
+    if (allocated + points > budgetPoints) {
+      const remaining = Math.max(0, budgetPoints - allocated);
+      return {
+        error: `That would exceed your Christmas budget — ${allocated} of ${budgetPoints} points used, ${remaining} left.`,
+      };
+    }
+  }
+
   const mongoSession = db.client.startSession();
   try {
     await mongoSession.withTransaction(async () => {
       await db.collection("users").updateOne(
         { _id: parent._id },
-        { $inc: { walletBalance: -costInCents } },
+        {
+          $inc: {
+            walletBalance: -costInCents,
+            ...(capActive ? { [`christmasPointsAllocated.${christmasYear}`]: points } : {}),
+          },
+        },
         { session: mongoSession }
       );
       await db.collection("children").updateOne(
