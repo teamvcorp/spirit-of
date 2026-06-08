@@ -75,13 +75,13 @@ export default function AddChildModal({ isOpen, onClose, onSuccess }: { isOpen: 
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Child's name or nickname"
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-gold-400 mb-4"
+            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-crimson-400 text-slate-900 placeholder:text-slate-400 mb-4"
           />
           <input
             value={promoCode}
             onChange={(e) => { setPromoCode(e.target.value); setError(""); }}
             placeholder="Promo code (optional)"
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-gold-400 mb-4"
+            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-crimson-400 text-slate-900 placeholder:text-slate-400 mb-4"
           />
           {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
           <button

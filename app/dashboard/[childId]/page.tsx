@@ -203,10 +203,10 @@ export default function ChildDashboard() {
         </div>
       )}
 
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
-        <div>
-          <h1 className="text-5xl font-serif italic text-slate-900 tracking-tight">Spirit of Santa</h1>
-          <p className="text-slate-400 mt-2 tracking-widest uppercase text-[10px] font-bold">
+      <header className="max-w-6xl mx-auto flex justify-between items-center gap-4 mb-12">
+        <div className="min-w-0">
+          <h1 className="text-3xl sm:text-5xl font-serif italic text-slate-900 tracking-tight">Spirit of Santa</h1>
+          <p className="text-slate-400 mt-2 tracking-widest uppercase text-[10px] font-bold truncate">
             Helper: {child.name}
           </p>
         </div>

@@ -30,12 +30,12 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input 
             type="email" placeholder="Parent Email" 
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-1 ring-crimson-400"
+            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-1 ring-crimson-400 text-slate-900 placeholder:text-slate-400"
             onChange={(e) => setForm({...form, email: e.target.value})}
           />
           <input 
             type="password" placeholder="Create Password" 
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-1 ring-crimson-400"
+            className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-1 ring-crimson-400 text-slate-900 placeholder:text-slate-400"
             onChange={(e) => setForm({...form, password: e.target.value})}
           />
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}

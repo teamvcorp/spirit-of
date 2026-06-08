@@ -228,7 +228,7 @@ function MagicPageInner() {
                         setError("");
                       }}
                       placeholder="SANTA-XXXX-XXXX"
-                      className="flex-1 px-5 py-3.5 bg-slate-50 rounded-2xl text-sm font-mono tracking-wider outline-none border-2 border-transparent focus:border-crimson-300 transition uppercase"
+                      className="flex-1 px-5 py-3.5 bg-slate-50 rounded-2xl text-sm font-mono tracking-wider outline-none border-2 border-transparent focus:border-crimson-300 transition uppercase text-slate-900 placeholder:text-slate-400"
                       onKeyDown={(e) => e.key === "Enter" && lookupCode(code)}
                     />
                     <button
@@ -294,7 +294,7 @@ function MagicPageInner() {
                     value={customAmount}
                     onChange={(e) => { setCustomAmount(e.target.value); setUseCustom(true); }}
                     placeholder="Custom amount"
-                    className={`w-full pl-8 pr-4 py-3.5 rounded-2xl text-sm outline-none border-2 transition ${
+                    className={`w-full pl-8 pr-4 py-3.5 rounded-2xl text-sm outline-none border-2 transition text-slate-900 placeholder:text-slate-400 ${
                       useCustom ? "border-crimson-300 bg-white" : "border-transparent bg-slate-50"
                     }`}
                   />
@@ -312,7 +312,7 @@ function MagicPageInner() {
                   placeholder="Your kind words…"
                   rows={3}
                   maxLength={500}
-                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent focus:border-crimson-200 transition resize-none"
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent focus:border-crimson-200 transition resize-none text-slate-900 placeholder:text-slate-400"
                 />
               </div>
 
@@ -326,7 +326,7 @@ function MagicPageInner() {
                   value={senderEmail}
                   onChange={(e) => setSenderEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full px-5 py-3.5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent focus:border-crimson-200 transition"
+                  className="w-full px-5 py-3.5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent focus:border-crimson-200 transition text-slate-900 placeholder:text-slate-400"
                 />
               </div>
 

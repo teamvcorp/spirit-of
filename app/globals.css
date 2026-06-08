@@ -40,12 +40,13 @@
   --color-silver-400: #6B7E96;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * Spirit of Santa is a deliberately light-themed design — every surface uses
+ * hardcoded light backgrounds (bg-slate-50, white cards). We intentionally do
+ * NOT honor the OS dark-mode preference here: doing so flipped the inherited
+ * text color to near-white while backgrounds stayed light, making any input
+ * without an explicit text color unreadable on dark-mode phones.
+ */
 
 body {
   background: var(--background);

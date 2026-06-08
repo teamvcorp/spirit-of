@@ -297,13 +297,13 @@ export default function AdminCMS() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans">
-      <header className="border-b border-slate-800 px-12 py-6 flex justify-between items-center">
-        <div>
+      <header className="border-b border-slate-800 px-4 sm:px-12 py-4 sm:py-6 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-center">
+        <div className="text-center sm:text-left">
           <span className="text-[10px] text-crimson-500 font-bold uppercase tracking-[0.3em]">Spirit of Santa</span>
           <h1 className="text-xl font-serif italic text-white mt-0.5">Company Admin</h1>
         </div>
-        <div className="flex items-center gap-6">
-          <nav className="flex gap-1 bg-slate-900 border border-slate-800 rounded-full px-1 py-1">
+        <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-between">
+          <nav className="flex flex-wrap gap-1 bg-slate-900 border border-slate-800 rounded-full px-1 py-1">
             <button
               onClick={() => { setActiveTab('requests'); loadRequests(); }}
               className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
@@ -352,7 +352,7 @@ export default function AdminCMS() {
           </button>
         </div>
       </header>
-      <main className="max-w-4xl mx-auto px-12 py-16">
+      <main className="max-w-4xl mx-auto px-4 sm:px-12 py-10 sm:py-16">
 
         {/* ── Users Tab ── */}
         {activeTab === 'users' && (
@@ -371,8 +371,8 @@ export default function AdminCMS() {
                 <p className="text-slate-600 font-serif italic text-lg">No users yet.</p>
               </div>
             ) : (
-              <div className="border border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-sm">
+              <div className="border border-slate-800 rounded-2xl overflow-x-auto">
+                <table className="w-full text-left text-sm min-w-160">
                   <thead className="bg-slate-900 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 border-b border-slate-800">
                     <tr>
                       <th className="px-8 py-5">Email</th>
@@ -510,8 +510,8 @@ export default function AdminCMS() {
                 <p className="text-slate-700 text-sm mt-2">Items appear here when manually locked or after 30 days on a wish list.</p>
               </div>
             ) : (
-              <div className="border border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-sm">
+              <div className="border border-slate-800 rounded-2xl overflow-x-auto">
+                <table className="w-full text-left text-sm min-w-160">
                   <thead className="bg-slate-900 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500 border-b border-slate-800">
                     <tr>
                       <th className="px-6 py-5">Toy</th>

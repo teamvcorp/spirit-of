@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, ScanLine, Wand2, Loader2, Camera } from "lucide-react";
+import { normalizeAndValidate } from "@/lib/upc/validate";
 
 // Minimal type for the experimental BarcodeDetector API (Chrome/Android).
 type BarcodeDetectorLike = {
@@ -39,52 +40,123 @@ export default function RequestToyModal({ childId, onClose, onAdded }: Props) {
   const [lookup, setLookup] = useState<LookupResponse | null>(null);
   const [doneKind, setDoneKind] = useState<"submitted" | "already_in_shop" | "already_requested">("submitted");
 
-  // Camera scanning (progressive enhancement)
+  // Camera scanning. Uses the fast native BarcodeDetector when available
+  // (Android Chrome), and falls back to the ZXing JS decoder everywhere else
+  // (iPhone — all iOS browsers, older browsers) so scanning works on any phone.
   const [scanning, setScanning] = useState(false);
+  const [scanHint, setScanHint] = useState("Point at the barcode");
+  const [showTypeGuide, setShowTypeGuide] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
-  const canScan = typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia;
+  const zxingControlsRef = useRef<{ stop: () => void } | null>(null);
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Anti-misread: only accept a barcode after it reads identically (and passes
+  // the GS1 checksum) on consecutive frames.
+  const candidateRef = useRef<string | null>(null);
+  const matchCountRef = useRef(0);
+  const failCountRef = useRef(0);
+  const lastDetectRef = useRef(0);
+  const REQUIRED_MATCHES = 2;
+  const FAILS_BEFORE_GUIDE = 2;
+  const canScan = typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
   const stopCamera = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    zxingControlsRef.current?.stop();
+    zxingControlsRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    candidateRef.current = null;
+    matchCountRef.current = 0;
     setScanning(false);
   };
 
   useEffect(() => () => stopCamera(), []);
 
+  // Shared handler for both scan engines: validate, require two matching reads,
+  // and after two misreads surface the "type it instead" guide.
+  const handleScannedValue = (rawValue: string) => {
+    const raw = rawValue.replace(/\D/g, "");
+    if (!raw) return;
+    const v = normalizeAndValidate(raw);
+    if (v.ok) {
+      if (candidateRef.current === raw) {
+        matchCountRef.current += 1;
+      } else {
+        candidateRef.current = raw;
+        matchCountRef.current = 1;
+      }
+      if (matchCountRef.current >= REQUIRED_MATCHES) {
+        stopCamera();
+        setCode(raw);
+        runLookup(raw);
+        return;
+      }
+      setScanHint("Hold steady…");
+    } else {
+      // Detected a code but the check digit failed — almost certainly a misread.
+      // Drop it so we never submit a bad UPC, and nudge toward typing after a couple tries.
+      candidateRef.current = null;
+      matchCountRef.current = 0;
+      failCountRef.current += 1;
+      setScanHint("Line the barcode up in the box…");
+      if (failCountRef.current >= FAILS_BEFORE_GUIDE) setShowTypeGuide(true);
+    }
+  };
+
   const startCamera = async () => {
     setError("");
+    setShowTypeGuide(false);
+    setScanHint("Point at the barcode");
+    candidateRef.current = null;
+    matchCountRef.current = 0;
+    failCountRef.current = 0;
     setScanning(true);
+    // If scanning hasn't succeeded after a while, offer the type-it path.
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    scanTimeoutRef.current = setTimeout(() => setShowTypeGuide(true), 15000);
+
     try {
-      const detector = new window.BarcodeDetector!({
-        formats: ["upc_a", "upc_e", "ean_13", "ean_8"],
-      });
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      const tick = async () => {
-        if (!videoRef.current || !streamRef.current) return;
-        try {
-          const codes = await detector.detect(videoRef.current);
-          if (codes[0]?.rawValue) {
-            stopCamera();
-            const found = codes[0].rawValue.replace(/\D/g, "");
-            setCode(found);
-            runLookup(found);
-            return;
-          }
-        } catch {
-          /* keep scanning */
+      if ("BarcodeDetector" in window) {
+        // ── Fast native path (Android Chrome/Edge) ──
+        const detector = new window.BarcodeDetector!({ formats: ["upc_a", "upc_e", "ean_13", "ean_8"] });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
         }
+        const tick = async () => {
+          if (!videoRef.current || !streamRef.current) return;
+          const now = performance.now();
+          if (now - lastDetectRef.current > 200) {
+            lastDetectRef.current = now;
+            try {
+              const codes = await detector.detect(videoRef.current);
+              if (codes[0]?.rawValue) handleScannedValue(codes[0].rawValue);
+            } catch {
+              /* keep scanning */
+            }
+          }
+          if (streamRef.current) rafRef.current = requestAnimationFrame(tick);
+        };
         rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // ── Universal JS fallback (iPhone + everything else) ──
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const reader = new BrowserMultiFormatReader();
+        if (!videoRef.current) return;
+        const controls = await reader.decodeFromConstraints(
+          { video: { facingMode: "environment" } },
+          videoRef.current,
+          (result) => {
+            if (result) handleScannedValue(result.getText());
+          },
+        );
+        zxingControlsRef.current = controls;
+      }
     } catch {
       setError("Couldn't open the camera — type the number instead.");
       stopCamera();
@@ -92,9 +164,12 @@ export default function RequestToyModal({ childId, onClose, onAdded }: Props) {
   };
 
   const runLookup = async (raw: string) => {
-    const cleaned = raw.replace(/\D/g, "");
-    if (cleaned.length < 8) {
-      setError("That barcode looks too short — it should be 12 or 13 numbers.");
+    // Client-side format + GS1 checksum check (same logic the server uses) so a
+    // mistyped or misread barcode is caught instantly, before any network call.
+    const v = normalizeAndValidate(raw);
+    if (!v.ok) {
+      setError(v.error ?? "That barcode doesn't look right — double-check the number and try again.");
+      setStep("input");
       return;
     }
     setError("");
@@ -103,7 +178,7 @@ export default function RequestToyModal({ childId, onClose, onAdded }: Props) {
       const res = await fetch("/api/upc/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: cleaned, childId }),
+        body: JSON.stringify({ code: raw.replace(/\D/g, ""), childId }),
       });
       const data: LookupResponse = await res.json();
       if (!data.result.ok) {
@@ -173,10 +248,30 @@ export default function RequestToyModal({ childId, onClose, onAdded }: Props) {
                 <div className="space-y-3">
                   <div className="relative rounded-3xl overflow-hidden bg-slate-900 aspect-4/3">
                     <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                    {/* Framing guide — kids line the barcode up inside the box */}
+                    <div className="absolute inset-x-6 top-1/2 -translate-y-1/2 h-24 border-2 border-white/70 rounded-2xl" />
                     <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-crimson-400 shadow-[0_0_12px_2px] shadow-crimson-400 animate-pulse" />
+                    <div className="absolute bottom-3 inset-x-0 text-center">
+                      <span className="inline-block bg-black/55 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                        {scanHint}
+                      </span>
+                    </div>
                   </div>
-                  <button onClick={stopCamera} className="w-full py-3 rounded-full text-sm font-bold bg-slate-100 text-slate-500 hover:bg-slate-200 transition">
-                    Stop camera
+                  {showTypeGuide && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-center">
+                      <p className="text-amber-800 text-sm font-semibold">Having trouble scanning?</p>
+                      <p className="text-amber-700 text-xs mt-0.5">No worries — just type the row of numbers printed under the barcode.</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={stopCamera}
+                    className={`w-full py-3 rounded-full text-sm font-bold transition ${
+                      showTypeGuide
+                        ? "bg-crimson-600 text-white hover:bg-crimson-700"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                    }`}
+                  >
+                    {showTypeGuide ? "Type the numbers instead" : "Type it instead"}
                   </button>
                 </div>
               ) : (
@@ -189,7 +284,7 @@ export default function RequestToyModal({ childId, onClose, onAdded }: Props) {
                       onChange={(e) => { setCode(e.target.value.replace(/[^\d ]/g, "")); setError(""); }}
                       onKeyDown={(e) => e.key === "Enter" && runLookup(code)}
                       placeholder="Type the barcode numbers"
-                      className="w-full bg-slate-50 border-2 border-transparent focus:border-crimson-400 rounded-2xl pl-12 pr-4 py-4 text-lg tracking-wide outline-none transition"
+                      className="w-full bg-slate-50 border-2 border-transparent focus:border-crimson-400 rounded-2xl pl-12 pr-4 py-4 text-lg tracking-wide outline-none transition text-slate-900 placeholder:text-slate-400"
                       autoFocus
                     />
                   </div>

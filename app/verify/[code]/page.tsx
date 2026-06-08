@@ -15,7 +15,7 @@ export default async function NeighborVerify({ params }: { params: Promise<{ cod
           <input type="hidden" name="code" value={code} />
           <textarea 
             name="note"
-            className="w-full bg-slate-50 border-none rounded-xl p-4 mb-4" 
+            className="w-full bg-slate-50 border-none rounded-xl p-4 mb-4 text-slate-900 placeholder:text-slate-400"
             placeholder="Leave a nice note..."
           />
           <button className="w-full bg-slate-900 text-white py-4 rounded-full font-bold hover:bg-emerald-700 transition-colors">
