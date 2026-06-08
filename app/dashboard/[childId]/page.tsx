@@ -4,9 +4,10 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import BehaviorMeter from "@/components/BehaviorMeter";
 import ToyGrid from "@/components/ToyGrid";
+import RequestToyModal from "@/components/RequestToyModal";
 import { getMeterStats, isShopLocked } from "@/lib/santa-logic";
 import { toggleWishlistItem, lockWishlistItem } from "@/app/actions";
-import { Lock, X, ShoppingBag, Heart, Pin } from "lucide-react";
+import { Lock, X, ShoppingBag, Heart, Pin, Wand2 } from "lucide-react";
 import type { WishlistItem } from "@/lib/utils";
 
 type Toy = { id: string; name: string; price: number; image: string };
@@ -31,6 +32,7 @@ export default function ChildDashboard() {
   const [activeTab, setActiveTab] = useState<"shop" | "wishlist">("shop");
   const [isChristmasLocked, setIsChristmasLocked] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   // PIN modal state
   const [showPinModal, setShowPinModal] = useState(false);
@@ -114,6 +116,20 @@ export default function ChildDashboard() {
     setLockingId(null);
   };
 
+  // Re-pull child + catalog after a toy request (a request may auto-add to the wishlist).
+  const reloadData = async () => {
+    const [childRes, toysRes] = await Promise.all([
+      fetch(`/api/children/${childId}`).then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/toys").then((r) => (r.ok ? r.json() : null)),
+    ]);
+    if (childRes) {
+      setChild(childRes.child);
+      setWishlistItems(childRes.wishlistItems ?? []);
+      setIsChristmasLocked(childRes.isChristmasLocked ?? false);
+    }
+    if (toysRes?.toys) setToys(toysRes.toys);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -135,6 +151,15 @@ export default function ChildDashboard() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] p-6 lg:p-12">
+      {/* Ask-the-Elves request modal */}
+      {showRequestModal && (
+        <RequestToyModal
+          childId={childId}
+          onClose={() => setShowRequestModal(false)}
+          onAdded={reloadData}
+        />
+      )}
+
       {/* PIN Modal */}
       {showPinModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -206,7 +231,7 @@ export default function ChildDashboard() {
 
       <section className="max-w-6xl mx-auto">
         {/* Tab toggle */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex flex-wrap items-center gap-2 mb-8">
           <button
             onClick={() => setActiveTab("shop")}
             className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all ${
@@ -233,6 +258,14 @@ export default function ChildDashboard() {
               </span>
             )}
           </button>
+          {!isChristmasLocked && (
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold bg-white text-crimson-600 border border-crimson-200 hover:bg-crimson-50 transition-all sm:ml-auto"
+            >
+              <Wand2 size={15} /> Ask the Elves for a Toy
+            </button>
+          )}
         </div>
 
         <AnimatePresence mode="wait">

@@ -1,7 +1,7 @@
 import { getDb, ObjectId } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { getYearStart } from "@/lib/santa-logic";
-import { normalizeWishlistItem } from "@/lib/utils";
+import { normalizeWishlistItem, type WishlistItem } from "@/lib/utils";
 
 export async function GET(
   _req: Request,
@@ -48,7 +48,7 @@ export async function GET(
     { arrayFilters: [{ "elem.addedAt": { $lte: thirtyDaysAgo }, "elem.lockedIn": { $ne: true }, "elem.toyId": { $exists: true } }] }
   ).catch((e: unknown) => console.error("[auto-lock]", e));
 
-  const wishlistItems = (child.wishlist ?? []).map(normalizeWishlistItem);
+  const wishlistItems: WishlistItem[] = (child.wishlist ?? []).map(normalizeWishlistItem);
 
   return NextResponse.json({
     child: {

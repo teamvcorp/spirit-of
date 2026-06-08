@@ -1,9 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check, ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
+import { Plus, Trash2, LogOut, Eye, EyeOff, KeyRound, Users, ShoppingBag, Copy, Check, ChevronDown, ChevronUp, ClipboardList, Inbox, Sparkles, ShieldCheck, ShieldAlert } from "lucide-react";
 
 type Toy = { id: string; name: string; description: string; price: number; image: string };
+type ToyRequest = {
+  id: string;
+  gtin14: string;
+  rawUpc: string;
+  status: "pending" | "approved" | "rejected";
+  product: { name: string | null; brand: string | null; description: string | null; images: string[] };
+  gs1Verified: boolean;
+  gs1Degraded: boolean;
+  suggestedPointCost: number | null;
+  finalPointCost: number | null;
+  wantedBy: { childName: string; parentEmail: string; role: string }[];
+  requestedCount: number;
+  createdAt: string;
+  rejectionReason: string | null;
+};
 type UserChild = { id: string; name: string; magicPoints: number; wishlistCount: number };
 type User = { id: string; email: string; createdAt: string; walletBalance: number; shippingAddress: string; referralCode: string; isChristmasLocked: boolean; children: UserChild[]; _count: { children: number } };
 type OrderItem = { childId: string; childName: string; parentEmail: string; shippingAddress: string; toyId: string; toyName: string; toyImage: string; pointCost: number; lockedAt: string | null; lockReason: string };
@@ -26,7 +41,11 @@ export default function AdminCMS() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'toys' | 'users' | 'orders'>('toys');
+  const [activeTab, setActiveTab] = useState<'toys' | 'users' | 'orders' | 'requests'>('toys');
+  const [requests, setRequests] = useState<ToyRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [reqDrafts, setReqDrafts] = useState<Record<string, { name: string; points: string; price: string }>>({});
+  const [processingReq, setProcessingReq] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [resettingUser, setResettingUser] = useState<string | null>(null);
@@ -40,7 +59,7 @@ export default function AdminCMS() {
   useEffect(() => {
     fetch("/api/admin/auth")
       .then((r) => r.json())
-      .then((d) => { setAuthed(d.ok); if (d.ok) { loadToys(); loadUsers(); loadOrders(); } });
+      .then((d) => { setAuthed(d.ok); if (d.ok) { loadToys(); loadUsers(); loadOrders(); loadRequests(); } });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -152,6 +171,63 @@ export default function AdminCMS() {
     setOrdersLoading(false);
   };
 
+  const loadRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const r = await fetch("/api/toy-requests?status=pending");
+      if (!r.ok) { console.error("loadRequests failed:", r.status); setRequestsLoading(false); return; }
+      const d = await r.json();
+      if (d.requests) {
+        setRequests(d.requests);
+        // Seed editable drafts from suggested values.
+        const drafts: Record<string, { name: string; points: string; price: string }> = {};
+        for (const req of d.requests as ToyRequest[]) {
+          drafts[req.id] = {
+            name: req.product.name ?? "",
+            points: req.suggestedPointCost != null ? String(req.suggestedPointCost) : "",
+            price: "",
+          };
+        }
+        setReqDrafts(drafts);
+      }
+    } catch (e) { console.error("loadRequests error:", e); }
+    setRequestsLoading(false);
+  };
+
+  const handleApproveRequest = async (id: string) => {
+    const draft = reqDrafts[id];
+    if (!draft?.name.trim()) { alert("A toy name is required."); return; }
+    const points = Number(draft.points);
+    if (!Number.isFinite(points) || points <= 0) { alert("Set a valid point cost before approving."); return; }
+    setProcessingReq(id);
+    const r = await fetch(`/api/toy-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "approve",
+        name: draft.name.trim(),
+        finalPointCost: points,
+        finalPriceCents: draft.price ? Math.round(Number(draft.price) * 100) : null,
+      }),
+    });
+    setProcessingReq(null);
+    if (r.ok) { loadRequests(); loadToys(); }
+    else { const d = await r.json(); alert(d.error ?? "Failed to approve."); }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    const reason = prompt("Reason for rejecting this toy? (optional — shown internally)") ?? "";
+    setProcessingReq(id);
+    const r = await fetch(`/api/toy-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reject", rejectionReason: reason }),
+    });
+    setProcessingReq(null);
+    if (r.ok) loadRequests();
+    else { const d = await r.json(); alert(d.error ?? "Failed to reject."); }
+  };
+
   const handleResetPassword = async (userId: string) => {
     if (!confirm("Reset this user's password? They will need to use the temporary password to log in.")) return;
     setResettingUser(userId);
@@ -228,6 +304,19 @@ export default function AdminCMS() {
         </div>
         <div className="flex items-center gap-6">
           <nav className="flex gap-1 bg-slate-900 border border-slate-800 rounded-full px-1 py-1">
+            <button
+              onClick={() => { setActiveTab('requests'); loadRequests(); }}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
+                activeTab === 'requests' ? 'bg-crimson-700 text-white' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <Inbox size={13} /> Requests
+              {requests.length > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === 'requests' ? 'bg-white/20 text-white' : 'bg-crimson-900 text-crimson-300'}`}>
+                  {requests.length}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setActiveTab('toys')}
               className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition ${
@@ -468,6 +557,123 @@ export default function AdminCMS() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Toy Requests Tab ── */}
+        {activeTab === 'requests' && (
+          <div>
+            <div className="flex justify-between items-end mb-10">
+              <div>
+                <h2 className="text-3xl font-serif italic">Toy Requests</h2>
+                <p className="text-slate-500 text-sm mt-1">
+                  Pending wishes from children &amp; parents. Set the final point cost, then approve to publish into the shop.
+                </p>
+              </div>
+              <button onClick={loadRequests} className="text-xs text-slate-500 hover:text-white transition font-medium">↺ Refresh</button>
+            </div>
+            {requestsLoading ? (
+              <p className="text-slate-600 text-sm italic animate-pulse">Loading requests…</p>
+            ) : requests.length === 0 ? (
+              <div className="text-center py-24 border border-dashed border-slate-800 rounded-2xl">
+                <p className="text-slate-600 font-serif italic text-lg">No pending requests.</p>
+                <p className="text-slate-700 text-sm mt-2">New toy requests from families appear here for review.</p>
+              </div>
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2">
+                {requests.map((req) => {
+                  const draft = reqDrafts[req.id] ?? { name: req.product.name ?? "", points: "", price: "" };
+                  const busy = processingReq === req.id;
+                  return (
+                    <div key={req.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                      <div className="flex gap-4">
+                        <div className="w-20 h-20 rounded-xl bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 border border-slate-700">
+                          {req.product.images?.[0] ? (
+                            <img src={req.product.images[0]} alt={req.product.name ?? "Toy"} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-2xl">🎁</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white font-medium leading-snug truncate">{req.product.name ?? <span className="text-slate-500 italic">No name found</span>}</p>
+                          {req.product.brand && <p className="text-slate-500 text-xs mt-0.5">{req.product.brand}</p>}
+                          <p className="text-slate-600 text-[10px] font-mono mt-1">GTIN {req.gtin14}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {req.gs1Degraded ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800">
+                                <ShieldAlert size={10} /> GS1 unverified
+                              </span>
+                            ) : req.gs1Verified ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800">
+                                <ShieldCheck size={10} /> GS1 verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800">
+                                <ShieldAlert size={10} /> Not GS1 licensed
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                              <Sparkles size={10} /> {req.requestedCount} {req.requestedCount === 1 ? "child" : "children"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        Wanted by: <span className="text-slate-300">{req.wantedBy.map((w) => w.childName).join(", ")}</span>
+                      </div>
+
+                      {/* Editable publish fields */}
+                      <div className="space-y-2">
+                        <input
+                          value={draft.name}
+                          onChange={(e) => setReqDrafts((p) => ({ ...p, [req.id]: { ...draft, name: e.target.value } }))}
+                          placeholder="Toy name (shown to children)"
+                          className="w-full bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-crimson-600 transition placeholder:text-slate-600"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Point Cost *</label>
+                            <input
+                              type="number" min="1" value={draft.points}
+                              onChange={(e) => setReqDrafts((p) => ({ ...p, [req.id]: { ...draft, points: e.target.value } }))}
+                              placeholder="e.g. 50"
+                              className="w-full bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-crimson-600 transition placeholder:text-slate-600"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Our Cost $ (optional)</label>
+                            <input
+                              type="number" min="0" step="0.01" value={draft.price}
+                              onChange={(e) => setReqDrafts((p) => ({ ...p, [req.id]: { ...draft, price: e.target.value } }))}
+                              placeholder="e.g. 24.99"
+                              className="w-full bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg text-sm outline-none focus:border-crimson-600 transition placeholder:text-slate-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          onClick={() => handleRejectRequest(req.id)}
+                          disabled={busy}
+                          className="px-4 py-2.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400 hover:text-red-400 hover:bg-slate-800/60 transition disabled:opacity-40"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleApproveRequest(req.id)}
+                          disabled={busy}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold bg-crimson-700 text-white hover:bg-crimson-600 transition disabled:opacity-40"
+                        >
+                          {busy ? "Working…" : "Approve & Publish"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

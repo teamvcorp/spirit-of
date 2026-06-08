@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Sparkles, ShieldCheck, Gift } from "lucide-react";
+import { Sparkles, ShieldCheck, Gift, Lock, Heart } from "lucide-react";
 
 interface FeaturedToy {
   id: string;
@@ -47,17 +47,24 @@ export default function LandingPage() {
           <span className="inline-block px-4 py-1.5 mb-6 text-[10px] font-bold tracking-[0.3em] uppercase bg-crimson-50 text-crimson-700 rounded-full border border-crimson-100">
             A New Tradition for Modern Families
           </span>
-          <h1 className="text-6xl md:text-7xl font-serif italic mb-8 tracking-tight">
-            Nurturing kindness through <br />
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-serif italic mb-8 tracking-tight leading-tight">
+            Nurturing kindness through <br className="hidden sm:block" />
             <span className="text-crimson-600">a touch of magic.</span>
           </h1>
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Track behavior with the Naughty-Nice meter, earn Magic Points through good deeds, and build a wishlist that rewards character.
+          <p className="text-base sm:text-lg text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
+            Children earn Christmas magic through real kindness — track good behavior with the Naughty-Nice meter, collect Magic Points for good deeds, and build a wishlist that rewards character.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform">
               Start Your Journey
             </Link>
+          </div>
+
+          {/* Trust strip */}
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-slate-400">
+            <span className="inline-flex items-center gap-2"><ShieldCheck size={15} className="text-emerald-500" /> 501(c)(3) Nonprofit · EIN 46-1005883</span>
+            <span className="inline-flex items-center gap-2"><Lock size={15} className="text-slate-500" /> Payments secured by Stripe</span>
+            <span className="inline-flex items-center gap-2"><Heart size={15} className="text-crimson-500" /> Built around your child&apos;s privacy</span>
           </div>
         </motion.div>
       </section>
@@ -122,8 +129,43 @@ export default function LandingPage() {
         </section>
       )}
 
+      {/* How it works / where the money goes */}
+      <section className="bg-white py-24 border-y border-slate-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <span className="inline-block px-4 py-1.5 mb-4 text-[10px] font-bold tracking-[0.3em] uppercase bg-slate-50 text-slate-500 rounded-full border border-slate-100">
+              Honest &amp; Transparent
+            </span>
+            <h2 className="text-4xl font-serif italic tracking-tight">How the magic actually works</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-10 text-center">
+            <div>
+              <div className="text-3xl mb-4">🌟</div>
+              <h3 className="font-serif italic text-lg mb-2">Kids earn it</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">Children collect Magic Points through good behavior and good deeds — never by spending money. Their dashboard never shows a price.</p>
+            </div>
+            <div>
+              <div className="text-3xl mb-4">💳</div>
+              <h3 className="font-serif italic text-lg mb-2">Parents fund the gift</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">When you&apos;re ready, you add funds to your family wallet through Stripe. You stay in control and finalize the wishlist before anything is purchased.</p>
+            </div>
+            <div>
+              <div className="text-3xl mb-4">🎁</div>
+              <h3 className="font-serif italic text-lg mb-2">We deliver the joy</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">As a 501(c)(3) nonprofit, we purchase and ship the chosen gifts. Proceeds support Von Der Becke Academy&apos;s educational mission.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-12 text-center text-slate-400 text-xs">
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-6 text-slate-500 font-medium">
+          <Link href="/privacy" className="hover:text-slate-900 transition">Privacy</Link>
+          <Link href="/terms" className="hover:text-slate-900 transition">Terms</Link>
+          <Link href="/contact" className="hover:text-slate-900 transition">Contact</Link>
+          <Link href="/login" className="hover:text-slate-900 transition">Parent Login</Link>
+        </div>
         <p className="tracking-widest uppercase">&copy; {new Date().getFullYear()} Spirit of Santa &bull; Built on fyht4.com</p>
         <p className="mt-2 text-slate-300 tracking-wide normal-case">A project of Von Der Becke Academy Corp &middot; 501(c)(3) Educational Facility &middot; EIN 46-1005883</p>
       </footer>

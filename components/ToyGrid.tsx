@@ -31,7 +31,7 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
   if (toys.length === 0) {
     return (
       <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
-        <p className="text-slate-500 italic font-serif">The toy catalog is being restocked � check back soon!</p>
+        <p className="text-slate-500 italic font-serif">The toy catalog is being restocked — check back soon!</p>
       </div>
     );
   }
@@ -62,11 +62,11 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
                 <img src={toy.image} alt={toy.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-4xl bg-linear-to-br from-slate-50 to-slate-100">
-                  ??
+                  🎁
                 </div>
               )}
               {isLockedIn && !isLocked && (
-                <div className="absolute top-2 right-2 bg-amber-400 text-white rounded-full p-1.5 shadow-md" title="Priority pick � locked in!">
+                <div className="absolute top-2 right-2 bg-amber-400 text-white rounded-full p-1.5 shadow-md" title="Priority pick — locked in!">
                   <Pin size={11} className="fill-white" />
                 </div>
               )}
@@ -98,7 +98,7 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
                 ) : (
                   <>
                     <Heart size={12} className={onList ? "fill-white" : ""} />
-                    {isLocked ? "Closed" : onList ? "On List ?" : canAfford ? "Add to List" : "Need Points"}
+                    {isLocked ? "Closed" : onList ? "On List ✓" : canAfford ? "Add to List" : "Need Points"}
                   </>
                 )}
               </button>
