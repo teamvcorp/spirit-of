@@ -1,5 +1,4 @@
 import { isSufficient, type Provider, type ProviderResult } from "./types";
-import { upcitemdb } from "./upcitemdb";
 import { barcodelookup } from "./barcodelookup";
 import { goupc } from "./goupc";
 
@@ -9,10 +8,11 @@ import { goupc } from "./goupc";
  * are collected so the merge stage can still backfill individual fields.
  *
  * Order: Go-UPC first (best images, free for ~150 lookups/mo). When its quota is
- * exhausted it returns a 429 → null, and the chain automatically falls back to
- * the free UPCitemdb trial. Barcode Lookup (paid) is last, only if a key is set.
+ * exhausted it returns a 429 → null and falls through to Barcode Lookup (paid,
+ * only if a key is set). If no provider returns data, the request still goes
+ * through as "verified, no data" and the admin fills in the details by hand.
  */
-const PROVIDER_PRIORITY: Provider[] = [goupc, upcitemdb, barcodelookup];
+const PROVIDER_PRIORITY: Provider[] = [goupc, barcodelookup];
 
 export interface MultiLookupResult {
   results: ProviderResult[];
