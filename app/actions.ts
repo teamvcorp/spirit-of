@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { sendVerificationEmail } from "@/lib/mail";
 import { logError } from "@/lib/log-error";
+import { verifyCaptcha } from "@/lib/captcha";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getYearStart } from "@/lib/santa-logic";
@@ -92,7 +93,16 @@ export async function confirmDeed(formData: FormData) {
   }
 }
 
-export async function registerUser(email: string, password: string) {
+export async function registerUser(
+  email: string,
+  password: string,
+  captchaToken?: string,
+  captchaAnswer?: string,
+) {
+  if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+    return { error: "Please solve the math question to prove you're human.", captchaFailed: true };
+  }
+
   const normalized = (email ?? "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     return { error: "Please enter a valid email address." };

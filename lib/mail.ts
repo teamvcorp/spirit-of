@@ -2,14 +2,33 @@ import { Resend } from 'resend';
 import QRCode from 'qrcode';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = "Santa's Workshop <postmaster@fyht4.com>";
+const FROM_EMAIL = "Santa's Workshop <noreply@fyht4.com>";
+
+// Shared org footer — identifies the nonprofit (good for trust + deliverability).
+// TODO: add your physical mailing address here for full CAN-SPAM compliance.
+const ORG_FOOTER_HTML = `
+  <hr style="border:none;border-top:1px solid #eee;margin:28px 0 14px;" />
+  <p style="color:#aaa;font-size:11px;line-height:1.6;margin:0;">
+    Spirit of Santa is a program of <strong>Von Der Becke Academy Corp</strong>, a 501(c)(3)
+    nonprofit (EIN 46-1005883). You received this email because an account was created with
+    this address at spiritofsanta.com.
+  </p>`;
+const ORG_FOOTER_TEXT =
+  "\n\n—\nSpirit of Santa is a program of Von Der Becke Academy Corp, a 501(c)(3) nonprofit (EIN 46-1005883). " +
+  "You received this email because an account was created with this address at spiritofsanta.com.";
 
 export const sendVerificationEmail = async (email: string, token: string, domain: string) => {
   const link = `${domain}/verify-email?token=${encodeURIComponent(token)}`;
   await resend.emails.send({
     from: FROM_EMAIL,
     to: email,
-    subject: "Confirm your email — Spirit of Santa ✨",
+    subject: "Confirm your email for Spirit of Santa",
+    // Plain-text alternative improves inbox placement (HTML-only mail scores worse).
+    text:
+      `Welcome to Spirit of Santa!\n\n` +
+      `Please confirm this email address by opening the link below:\n${link}\n\n` +
+      `If you didn't create this account, you can ignore this message.` +
+      ORG_FOOTER_TEXT,
     html: `
       <div style="font-family:Georgia,serif;max-width:560px;margin:auto;padding:32px;">
         <h1 style="color:#c0392b;font-size:24px;margin-bottom:8px;">Welcome to Spirit of Santa!</h1>
@@ -17,6 +36,7 @@ export const sendVerificationEmail = async (email: string, token: string, domain
         <a href="${link}" style="display:inline-block;margin:20px 0;background:#c0392b;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;">Confirm my email</a>
         <p style="color:#aaa;font-size:12px;line-height:1.6;">If the button doesn't work, paste this link into your browser:<br/>${link}</p>
         <p style="color:#aaa;font-size:12px;">If you didn't create this account, you can ignore this message.</p>
+        ${ORG_FOOTER_HTML}
       </div>
     `,
   });
