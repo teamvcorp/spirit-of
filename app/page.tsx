@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Sparkles, ShieldCheck, Gift, Lock, Heart } from "lucide-react";
+import { Sparkles, ShieldCheck, Gift, Lock, Heart, Play } from "lucide-react";
+import VideoModal from "@/components/VideoModal";
+import { SITE_VIDEOS, type SiteVideo } from "@/lib/site-videos";
 
 interface FeaturedToy {
   id: string;
@@ -12,6 +14,7 @@ interface FeaturedToy {
 
 export default function LandingPage() {
   const [featuredToys, setFeaturedToys] = useState<FeaturedToy[]>([]);
+  const [activeVideo, setActiveVideo] = useState<SiteVideo | null>(null);
 
   useEffect(() => {
     fetch("/api/toys/featured")
@@ -54,10 +57,19 @@ export default function LandingPage() {
           <p className="text-base sm:text-lg text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
             Children earn Christmas magic through real kindness — track good behavior with the Naughty-Nice meter, collect Magic Points for good deeds, and build a wishlist that rewards character.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link href="/register" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform">
               Start Your Journey
             </Link>
+            <button
+              onClick={() => setActiveVideo(SITE_VIDEOS.intro)}
+              className="inline-flex items-center gap-2 text-slate-700 font-bold px-7 py-4 rounded-full border border-slate-200 hover:border-slate-400 hover:bg-white transition"
+            >
+              <span className="w-7 h-7 rounded-full bg-crimson-600 flex items-center justify-center shrink-0">
+                <Play size={12} className="fill-white text-white ml-0.5" />
+              </span>
+              Watch a message from Santa
+            </button>
           </div>
 
           {/* Trust strip */}
@@ -72,20 +84,23 @@ export default function LandingPage() {
       {/* Features Grid */}
       <section className="bg-white py-24 border-y border-slate-100">
         <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-16">
-          <FeatureCard 
+          <FeatureCard
             icon={<ShieldCheck className="text-crimson-500" />}
             title="Parental Voting"
             desc="A daily vote keeps the Naughty-Nice meter moving. Earn enough Magic Points and Christmas wishes come true."
+            onPlay={() => setActiveVideo(SITE_VIDEOS.meter)}
           />
-          <FeatureCard 
+          <FeatureCard
             icon={<Sparkles className="text-royal-600" />}
             title="Good Deed Cards"
             desc="Physical cards with unique codes for neighbors to scan when your child helps the community."
+            onPlay={() => setActiveVideo(SITE_VIDEOS.deeds)}
           />
-          <FeatureCard 
+          <FeatureCard
             icon={<Gift className="text-crimson-500" />}
             title="Santa's Workshop"
             desc="The elves curate a special shop of gifts. Kids browse and add their favourites to a wishlist using the Magic Points they've earned."
+            onPlay={() => setActiveVideo(SITE_VIDEOS.workshop)}
           />
         </div>
       </section>
@@ -155,6 +170,25 @@ export default function LandingPage() {
               <p className="text-slate-500 text-sm leading-relaxed">As a 501(c)(3) nonprofit, we purchase and ship the chosen gifts. Proceeds support Von Der Becke Academy&apos;s educational mission.</p>
             </div>
           </div>
+
+          {/* Video clips */}
+          <div className="mt-16 text-center">
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-slate-400 mb-5">Watch Santa explain it</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {[SITE_VIDEOS.parents, SITE_VIDEOS.magic1, SITE_VIDEOS.magic2].map((v) => (
+                <button
+                  key={v.src}
+                  onClick={() => setActiveVideo(v)}
+                  className="inline-flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-full px-4 py-2.5 text-xs font-semibold text-slate-600 transition"
+                >
+                  <span className="w-5 h-5 rounded-full bg-crimson-600 flex items-center justify-center shrink-0">
+                    <Play size={9} className="fill-white text-white ml-0.5" />
+                  </span>
+                  {v.title}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -169,16 +203,31 @@ export default function LandingPage() {
         <p className="tracking-widest uppercase">&copy; {new Date().getFullYear()} Spirit of Santa &bull; Built on fyht4.com</p>
         <p className="mt-2 text-slate-300 tracking-wide normal-case">A project of Von Der Becke Academy Corp &middot; 501(c)(3) Educational Facility &middot; EIN 46-1005883</p>
       </footer>
+
+      {activeVideo && (
+        <VideoModal src={activeVideo.src} title={activeVideo.title} onClose={() => setActiveVideo(null)} />
+      )}
     </div>
   );
 }
 
-function FeatureCard({ icon, title, desc }: any) {
+function FeatureCard({ icon, title, desc, onPlay }: { icon: ReactNode; title: string; desc: string; onPlay?: () => void }) {
   return (
     <div className="text-center">
       <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-6">{icon}</div>
       <h3 className="text-xl font-serif italic mb-3">{title}</h3>
       <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
+      {onPlay && (
+        <button
+          onClick={onPlay}
+          className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-crimson-600 hover:text-crimson-700 transition"
+        >
+          <span className="w-6 h-6 rounded-full bg-crimson-50 flex items-center justify-center">
+            <Play size={11} className="fill-crimson-600 text-crimson-600 ml-0.5" />
+          </span>
+          Watch the video
+        </button>
+      )}
     </div>
   );
 }
