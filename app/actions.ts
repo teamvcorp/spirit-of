@@ -1,8 +1,10 @@
 "use server"
 import { getDb, ObjectId } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
+import { sendVerificationEmail } from "@/lib/mail";
+import { logError } from "@/lib/log-error";
 import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getYearStart } from "@/lib/santa-logic";
 import { getChristmasYear, type ChristmasPlan } from "@/lib/christmas-plan";
@@ -91,12 +93,22 @@ export async function confirmDeed(formData: FormData) {
 }
 
 export async function registerUser(email: string, password: string) {
+  const normalized = (email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return { error: "Please enter a valid email address." };
+  }
+  if (!password || password.length < 6) {
+    return { error: "Password must be at least 6 characters." };
+  }
+
   const db = await getDb();
-  const existing = await db.collection("users").findOne({ email });
-  if (existing) redirect('/login');
+  const existing = await db.collection("users").findOne({ email: normalized });
+  if (existing) return { error: "An account with that email already exists — try logging in." };
+
   const hashed = await bcrypt.hash(password, 12);
+  const verificationToken = randomBytes(24).toString("hex");
   await db.collection("users").insertOne({
-    email,
+    email: normalized,
     password: hashed,
     parentPin: null,
     stripeId: null,
@@ -106,8 +118,20 @@ export async function registerUser(email: string, password: string) {
     isChristmasLocked: false,
     finalizedAt: null,
     usedFreeChildPromo: false,
+    emailVerified: false,
+    verificationToken,
     createdAt: new Date(),
   });
+
+  // Soft verification: send the confirmation link, but never block signup if email fails.
+  try {
+    const domain = process.env.NEXT_PUBLIC_DOMAIN ?? "https://spiritofsanta.com";
+    await sendVerificationEmail(normalized, verificationToken, domain);
+  } catch (e) {
+    await logError("registerUser sendVerificationEmail", e, { email: normalized });
+  }
+
+  return { success: true };
 }
 
 export async function addChild(formData: FormData) {

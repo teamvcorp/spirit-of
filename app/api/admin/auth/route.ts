@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, hashAdminPw, isAdminAuthenticated } from "@/lib/admin-auth";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function GET() {
   const ok = await isAdminAuthenticated();
@@ -18,10 +19,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // Throttle password guessing per IP.
+  const limit = await rateLimit(`admin-login:${clientIp(req)}`, 10, 15 * 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many attempts. Try again later." }, { status: 429 });
+  }
+
   const { password } = body;
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-  if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
+  if (!ADMIN_PASSWORD || typeof password !== "string" || password !== ADMIN_PASSWORD) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 

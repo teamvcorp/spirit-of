@@ -13,6 +13,9 @@ export async function DELETE(
   }
 
   const { userId } = await params;
+  if (!ObjectId.isValid(userId)) {
+    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+  }
   const db = await getDb();
 
   const children = await db.collection("children").find({ parentId: userId }).project({ _id: 1 }).toArray();
@@ -35,6 +38,9 @@ export async function PATCH(
   }
 
   const { userId } = await params;
+  if (!ObjectId.isValid(userId)) {
+    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
+  }
 
   const tempPassword = "Santa-" + randomBytes(4).toString("hex").toUpperCase();
   const hashed = await bcrypt.hash(tempPassword, 12);

@@ -21,6 +21,7 @@ export async function GET() {
       return {
         id: u._id.toString(),
         email: u.email,
+        emailVerified: u.emailVerified === true,
         createdAt: u.createdAt,
         walletBalance: u.walletBalance ?? 0,
         shippingAddress: u.shippingAddress ?? '',

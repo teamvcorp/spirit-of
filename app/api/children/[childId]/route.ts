@@ -8,6 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ childId: string }> }
 ) {
   const { childId } = await params;
+  if (!ObjectId.isValid(childId)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const yearStart = getYearStart();
 
   const todayStart = new Date();

@@ -15,7 +15,12 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         const db = await getDb();
-        const user = await db.collection("users").findOne({ email: credentials.email });
+        const raw = credentials.email.trim();
+        // New accounts are stored lowercased; fall back to an exact match for legacy rows.
+        let user = await db.collection("users").findOne({ email: raw.toLowerCase() });
+        if (!user && raw !== raw.toLowerCase()) {
+          user = await db.collection("users").findOne({ email: raw });
+        }
         if (!user) return null;
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
         return isPasswordValid ? { id: user._id.toString(), email: user.email } : null;

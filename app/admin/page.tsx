@@ -20,7 +20,7 @@ type ToyRequest = {
   rejectionReason: string | null;
 };
 type UserChild = { id: string; name: string; magicPoints: number; wishlistCount: number };
-type User = { id: string; email: string; createdAt: string; walletBalance: number; shippingAddress: string; referralCode: string; isChristmasLocked: boolean; children: UserChild[]; _count: { children: number } };
+type User = { id: string; email: string; emailVerified: boolean; createdAt: string; walletBalance: number; shippingAddress: string; referralCode: string; isChristmasLocked: boolean; children: UserChild[]; _count: { children: number } };
 type OrderItem = { childId: string; childName: string; parentEmail: string; shippingAddress: string; toyId: string; toyName: string; toyImage: string; pointCost: number; lockedAt: string | null; lockReason: string };
 
 export default function AdminCMS() {
@@ -395,6 +395,9 @@ export default function AdminCMS() {
                               {expandedUser === user.id ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
                               <div>
                                 <span className="text-white font-medium">{user.email}</span>
+                                <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${user.emailVerified ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                                  {user.emailVerified ? '✓ Verified' : 'Unverified'}
+                                </span>
                                 {tempPasswords[user.id] && (
                                   <div className="mt-2 flex items-center gap-2">
                                     <span className="font-mono text-xs bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700">

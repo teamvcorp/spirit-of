@@ -15,7 +15,8 @@ export default function Register() {
     e.preventDefault();
     setError(null);
     try {
-      await registerUser(form.email, form.password);
+      const res = await registerUser(form.email, form.password);
+      if (res?.error) { setError(res.error); return; }
       router.push("/login");
     } catch (err: unknown) {
       if (isRedirectError(err)) throw err;

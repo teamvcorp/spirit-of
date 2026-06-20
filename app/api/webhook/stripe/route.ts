@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { sendOrderConfirmation, sendFinalList, sendMagicTipNotification } from "@/lib/mail";
 import { getDb, ObjectId } from "@/lib/mongodb";
 import { getChristmasYear } from "@/lib/christmas-plan";
+import { logError } from "@/lib/log-error";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
@@ -13,6 +14,7 @@ export async function POST(req: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
+    await logError('stripe webhook signature', err);
     return new Response(`Webhook Error`, { status: 400 });
   }
 
@@ -27,6 +29,8 @@ export async function POST(req: Request) {
     } catch {
       return new Response('Already processed', { status: 200 });
     }
+
+    try {
 
     if (meta.type === 'PHYSICAL_CARDS') {
       const email = meta.recipientEmail || pi.receipt_email;
@@ -175,6 +179,10 @@ export async function POST(req: Request) {
           );
         }
       }
+    }
+    } catch (e) {
+      await logError('stripe webhook handler', e, { eventType: meta.type });
+      return new Response('Webhook handler error', { status: 500 });
     }
   }
 

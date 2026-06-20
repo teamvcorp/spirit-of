@@ -4,6 +4,24 @@ import QRCode from 'qrcode';
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = "Santa's Workshop <postmaster@fyht4.com>";
 
+export const sendVerificationEmail = async (email: string, token: string, domain: string) => {
+  const link = `${domain}/verify-email?token=${encodeURIComponent(token)}`;
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: "Confirm your email — Spirit of Santa ✨",
+    html: `
+      <div style="font-family:Georgia,serif;max-width:560px;margin:auto;padding:32px;">
+        <h1 style="color:#c0392b;font-size:24px;margin-bottom:8px;">Welcome to Spirit of Santa!</h1>
+        <p style="color:#555;line-height:1.6;">Please confirm this email address so we know how to reach you about your family's account.</p>
+        <a href="${link}" style="display:inline-block;margin:20px 0;background:#c0392b;color:#fff;text-decoration:none;padding:14px 28px;border-radius:9999px;font-weight:bold;">Confirm my email</a>
+        <p style="color:#aaa;font-size:12px;line-height:1.6;">If the button doesn't work, paste this link into your browser:<br/>${link}</p>
+        <p style="color:#aaa;font-size:12px;">If you didn't create this account, you can ignore this message.</p>
+      </div>
+    `,
+  });
+};
+
 type CardOrderDetails = {
   shippingAddress: string;
   referralCode: string;
