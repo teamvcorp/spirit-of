@@ -20,7 +20,7 @@ export async function GET() {
   const user = await db.collection("users").findOne({ email: session.user.email });
 
   if (!user) {
-    return NextResponse.json({ children: [], hasPin: false, walletBalance: 0, isChristmasLocked: false, shippingAddress: '', referralCode: null, christmasPlan: null, pointsAllocated: 0 });
+    return NextResponse.json({ children: [], hasPin: false, walletBalance: 0, isChristmasLocked: false, shippingAddress: '', referralCode: null, christmasPlan: null });
   }
 
   const childrenRaw = await db.collection("children")
@@ -56,7 +56,6 @@ export async function GET() {
   const christmasYear = getChristmasYear();
   const rawPlan = user.christmasPlan as ChristmasPlan | undefined;
   const christmasPlan = rawPlan && rawPlan.year === christmasYear ? summarizePlan(rawPlan) : null;
-  const pointsAllocated = (user.christmasPointsAllocated?.[String(christmasYear)] as number | undefined) ?? 0;
 
   return NextResponse.json({
     children,
@@ -66,6 +65,5 @@ export async function GET() {
     shippingAddress: user.shippingAddress ?? '',
     referralCode: user.referralCode ?? null,
     christmasPlan,
-    pointsAllocated,
   });
 }

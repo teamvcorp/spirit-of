@@ -43,10 +43,11 @@ export default function ParentPortal() {
   const [toppingUp, setToppingUp] = useState(false);
   // Christmas budget plan
   const [christmasPlan, setChristmasPlan] = useState<PlanSummary | null>(null);
-  const [pointsAllocated, setPointsAllocated] = useState(0);
   const [budgetInput, setBudgetInput] = useState("");
   const [savingBudget, setSavingBudget] = useState(false);
   const [planError, setPlanError] = useState("");
+  const [splitDraft, setSplitDraft] = useState<Record<string, number>>({});
+  const [savingSplit, setSavingSplit] = useState(false);
   // Fill missed days
   const [fillingDays, setFillingDays] = useState<string | null>(null); // childId
   const [fillMode, setFillMode] = useState<'nice' | 'naughty' | 'half' | null>(null);
@@ -92,7 +93,6 @@ export default function ParentPortal() {
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
       setChristmasPlan(data.christmasPlan ?? null);
-      setPointsAllocated(data.pointsAllocated ?? 0);
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -109,7 +109,6 @@ export default function ParentPortal() {
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
       setChristmasPlan(data.christmasPlan ?? null);
-      setPointsAllocated(data.pointsAllocated ?? 0);
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -193,6 +192,28 @@ export default function ParentPortal() {
       else { setBudgetInput(""); await fetchChildren(); }
     } catch { setPlanError("Something went wrong. Try again."); }
     setSavingBudget(false);
+  };
+
+  // Seed the split sliders from the saved plan (even split by default).
+  useEffect(() => {
+    if (!christmasPlan || kids.length === 0) return;
+    const even = 100 / kids.length;
+    const seed: Record<string, number> = {};
+    for (const k of kids) seed[k.id] = christmasPlan.splits?.[k.id] ?? even;
+    setSplitDraft(seed);
+  }, [christmasPlan, kids]);
+
+  const handleSaveSplit = async () => {
+    setSavingSplit(true);
+    try {
+      await fetch("/api/christmas-plan/splits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ splits: splitDraft }),
+      });
+      await fetchChildren();
+    } catch { /* non-fatal */ }
+    setSavingSplit(false);
   };
 
   const handleCancelPlan = async () => {
@@ -1247,11 +1268,40 @@ export default function ParentPortal() {
                       </div>
                     )}
 
-                    {/* Spending cap status */}
-                    <div className="text-xs text-slate-500 border border-slate-100 rounded-2xl px-4 py-3">
-                      <span className="font-semibold text-slate-600">Kids&apos; Christmas spending:</span> {pointsAllocated} of {christmasPlan.budgetPoints} points allocated
-                      {pointsAllocated >= christmasPlan.budgetPoints && <span className="text-crimson-600 font-semibold"> · budget reached</span>}
-                    </div>
+                    {/* Per-child budget split */}
+                    {kids.length >= 2 ? (
+                      <div className="border-t border-slate-100 pt-5">
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Budget split per child</p>
+                        <p className="text-xs text-slate-400 mb-4">Each child unlocks their share through nice votes. Drag to adjust; shares are normalized to 100%.</p>
+                        <div className="space-y-4">
+                          {kids.map((k) => {
+                            const total = Object.values(splitDraft).reduce((s, v) => s + (v || 0), 0) || 1;
+                            const pct = ((splitDraft[k.id] ?? 0) / total) * 100;
+                            const dollars = (christmasPlan.budgetCents / 100) * (pct / 100);
+                            return (
+                              <div key={k.id}>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="font-semibold text-slate-700">{k.name}</span>
+                                  <span className="text-slate-500">{pct.toFixed(0)}% · ${dollars.toFixed(0)}</span>
+                                </div>
+                                <input
+                                  type="range" min={0} max={100} value={splitDraft[k.id] ?? 0}
+                                  onChange={(e) => setSplitDraft((d) => ({ ...d, [k.id]: Number(e.target.value) }))}
+                                  className="w-full accent-crimson-600"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button onClick={handleSaveSplit} disabled={savingSplit} className="mt-4 text-xs bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition disabled:opacity-50">
+                          {savingSplit ? "Saving…" : "Save split"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 border border-slate-100 rounded-2xl px-4 py-3">
+                        Your child unlocks this budget through their nice votes across the year.
+                      </div>
+                    )}
 
                     {planError && <p className="text-red-500 text-xs">{planError}</p>}
 

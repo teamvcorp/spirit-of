@@ -47,3 +47,48 @@ export const isShopLocked = () => {
   const unlockDate = new Date(year, 11, 26);  // Dec 26th
   return today > lockoutDate && today < unlockDate;
 };
+
+/**
+ * Behavior-driven budget allowance.
+ *
+ * A kid earns access to their share of the family budget through daily NICE
+ * votes. 300 nice days unlocks 100% of their share (≈65 "mistake" days of grace).
+ * On top of that, deed-tip points and parent Send-Points bonuses (both stored in
+ * child.magicPoints) add to the spendable allowance. A kid's total wishlist value
+ * may not exceed this allowance.
+ */
+export const BUDGET_GRACE_DAYS = 300;
+
+/** A child's share of the family budget, in points ($1 = 1 pt). `pct` is 0–100. */
+export function kidBudgetPoints(budgetCents: number, pct: number): number {
+  return Math.floor((budgetCents / 100) * (pct / 100));
+}
+
+/** Points unlocked so far from nice votes, capped at the kid's budget share. */
+export function unlockedBudgetPoints(niceVoteCount: number, kidBudgetPts: number): number {
+  if (kidBudgetPts <= 0) return 0;
+  return Math.min(kidBudgetPts, Math.floor((niceVoteCount * kidBudgetPts) / BUDGET_GRACE_DAYS));
+}
+
+export interface AllowanceResult {
+  kidBudgetPts: number;
+  unlockedShare: number;
+  /** unlockedShare + bonus points (deed tips + parent Send-Points). */
+  allowance: number;
+}
+
+/**
+ * Full allowance for a child. When there is no budget (budgetCents <= 0), the
+ * allowance is just their bonus points and the caller should treat the wishlist
+ * cap as not enforced (budget-less families keep prior behavior).
+ */
+export function computeAllowance(args: {
+  budgetCents: number;
+  pct: number;
+  niceVotes: number;
+  magicPoints: number;
+}): AllowanceResult {
+  const kidBudgetPts = kidBudgetPoints(args.budgetCents, args.pct);
+  const unlockedShare = unlockedBudgetPoints(args.niceVotes, kidBudgetPts);
+  return { kidBudgetPts, unlockedShare, allowance: unlockedShare + Math.max(0, args.magicPoints) };
+}

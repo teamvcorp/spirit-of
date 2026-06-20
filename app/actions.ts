@@ -5,12 +5,13 @@ import { randomBytes } from "crypto";
 import { sendVerificationEmail } from "@/lib/mail";
 import { logError } from "@/lib/log-error";
 import { verifyCaptcha } from "@/lib/captcha";
+import { getChildAllowance } from "@/lib/allowance";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getYearStart } from "@/lib/santa-logic";
-import { getChristmasYear, type ChristmasPlan } from "@/lib/christmas-plan";
 
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
+  if (!ObjectId.isValid(childId) || !ObjectId.isValid(toyId)) return { error: "Invalid item." };
   const db = await getDb();
   if (add) {
     // Only add if not already present (handles both old string format and new object format)
@@ -18,12 +19,26 @@ export async function toggleWishlistItem(childId: string, toyId: string, add: bo
       _id: new ObjectId(childId),
       $or: [{ wishlist: toyId }, { "wishlist.toyId": toyId }],
     });
-    if (!alreadyOn) {
-      await db.collection("children").updateOne(
-        { _id: new ObjectId(childId) },
-        { $push: { wishlist: { toyId, addedAt: new Date(), lockedIn: false } } } as any
-      );
+    if (alreadyOn) return { success: true };
+
+    // Behavior-driven allowance cap: the wishlist total can't exceed what the
+    // child has earned (unlocked budget share + deed/bonus points). Skipped when
+    // the family has no Christmas plan.
+    const info = await getChildAllowance(db, childId);
+    if (info?.hasPlan) {
+      const toy = await db.collection("toys").findOne({ _id: new ObjectId(toyId) }, { projection: { pointCost: 1 } });
+      const cost = toy?.pointCost ?? 0;
+      if (info.wishlistTotal + cost > info.allowance) {
+        const remaining = Math.max(0, info.allowance - info.wishlistTotal);
+        return { error: `Not enough magic points yet — only ${remaining} left in your allowance. Earn more with nice votes and good deeds!` };
+      }
     }
+
+    await db.collection("children").updateOne(
+      { _id: new ObjectId(childId) },
+      { $push: { wishlist: { toyId, addedAt: new Date(), lockedIn: false } } } as any
+    );
+    return { success: true };
   } else {
     // Remove new-format item only if not locked
     await db.collection("children").updateOne(
@@ -35,6 +50,7 @@ export async function toggleWishlistItem(childId: string, toyId: string, add: bo
       { _id: new ObjectId(childId) },
       { $pull: { wishlist: toyId } } as any
     );
+    return { success: true };
   }
 }
 
@@ -65,32 +81,40 @@ export async function submitDailyVote(childId: string, isPositive: boolean) {
   );
 }
 
-export async function confirmDeed(formData: FormData) {
-  const code = formData.get('code') as string;
-  const note = (formData.get('note') as string) ?? '';
-  if (!code) return;
+/**
+ * Free deed confirmation (no tip). A good deed counts as nice behavior, so it
+ * records a nice vote for the child today — but awards NO points. Points now
+ * come only from tips (deed reward = money tipped), handled in the webhook.
+ */
+export async function confirmDeed(code: string, note: string = "") {
+  if (!code || typeof code !== "string") return { error: "Missing code." };
 
   const db = await getDb();
   const deed = await db.collection("goodDeeds").findOne({ code, isConfirmed: false });
-  if (!deed) return;
+  if (!deed) return { error: "This deed code is invalid or has already been used." };
 
-  const session = db.client.startSession();
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const dbSession = db.client.startSession();
   try {
-    await session.withTransaction(async () => {
+    await dbSession.withTransaction(async () => {
       await db.collection("goodDeeds").updateOne(
         { code },
         { $set: { isConfirmed: true, neighborNote: note } },
-        { session }
+        { session: dbSession }
       );
-      await db.collection("children").updateOne(
-        { _id: new ObjectId(deed.childId) },
-        { $inc: { magicPoints: deed.pointsEarned } },
-        { session }
+      // A confirmed deed registers a nice vote for that day.
+      await db.collection("dailyVotes").updateOne(
+        { childId: deed.childId, date: today },
+        { $set: { isPositive: true, childId: deed.childId, date: today } },
+        { upsert: true, session: dbSession }
       );
     });
   } finally {
-    await session.endSession();
+    await dbSession.endSession();
   }
+  return { success: true };
 }
 
 export async function registerUser(
@@ -197,34 +221,16 @@ export async function sendMagicPoints(childId: string, points: number) {
     return { error: "Insufficient wallet balance" };
   }
 
-  // Christmas budget cap: a parent can't allocate more total Magic Points to
-  // their kids this cycle than their budget covers ($1 = 1 point). Only enforced
-  // when a plan exists for the current Christmas year.
-  const plan = parent.christmasPlan as ChristmasPlan | undefined;
-  const christmasYear = getChristmasYear();
-  const capActive = !!plan && plan.year === christmasYear;
-  if (capActive) {
-    const budgetPoints = Math.floor(plan!.budgetCents / 100);
-    const allocated = (parent.christmasPointsAllocated?.[String(christmasYear)] as number | undefined) ?? 0;
-    if (allocated + points > budgetPoints) {
-      const remaining = Math.max(0, budgetPoints - allocated);
-      return {
-        error: `That would exceed your Christmas budget — ${allocated} of ${budgetPoints} points used, ${remaining} left.`,
-      };
-    }
-  }
-
+  // Send Points is a parent BONUS on top of the behavior-unlocked allowance —
+  // it adds to the child's magicPoints (and thus their allowance). The real
+  // spending limit is now the per-child wishlist allowance cap, so there's no
+  // separate allocation cap here.
   const mongoSession = db.client.startSession();
   try {
     await mongoSession.withTransaction(async () => {
       await db.collection("users").updateOne(
         { _id: parent._id },
-        {
-          $inc: {
-            walletBalance: -costInCents,
-            ...(capActive ? { [`christmasPointsAllocated.${christmasYear}`]: points } : {}),
-          },
-        },
+        { $inc: { walletBalance: -costInCents } },
         { session: mongoSession }
       );
       await db.collection("children").updateOne(

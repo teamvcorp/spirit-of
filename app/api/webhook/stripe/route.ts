@@ -152,6 +152,43 @@ export async function POST(req: Request) {
       }
     }
 
+    if (meta.type === 'DEED_TIP') {
+      const { code, childId, parentId } = meta;
+      const amountCents = pi.amount;
+      if (code && childId && amountCents > 0) {
+        const deed = await db.collection("goodDeeds").findOne({ code, isConfirmed: false });
+        if (deed) {
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0);
+          // Confirm the deed, record a nice vote, and award points = $ tipped (1pt=$1).
+          await db.collection("goodDeeds").updateOne(
+            { code },
+            { $set: { isConfirmed: true, neighborNote: meta.note ?? '', tippedCents: amountCents } }
+          );
+          await db.collection("dailyVotes").updateOne(
+            { childId, date: today },
+            { $set: { isPositive: true, childId, date: today } },
+            { upsert: true }
+          );
+          await db.collection("children").updateOne(
+            { _id: new ObjectId(childId) },
+            { $inc: { magicPoints: Math.round(amountCents / 100) } }
+          );
+          // Money pools to the family wallet + offsets the shared budget.
+          if (parentId) {
+            await db.collection("users").updateOne(
+              { _id: new ObjectId(parentId) },
+              { $inc: { walletBalance: amountCents } }
+            );
+            await db.collection("users").updateOne(
+              { _id: new ObjectId(parentId), "christmasPlan.year": getChristmasYear() },
+              { $inc: { "christmasPlan.communityCents": amountCents } }
+            );
+          }
+        }
+      }
+    }
+
     if (meta.type === 'CHILD_REGISTRATION') {
       const { parentId, childName } = meta;
       if (parentId && childName) {

@@ -2,6 +2,7 @@ import { getDb, ObjectId } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { getYearStart } from "@/lib/santa-logic";
 import { normalizeWishlistItem, type WishlistItem } from "@/lib/utils";
+import { getChildAllowance } from "@/lib/allowance";
 
 export async function GET(
   _req: Request,
@@ -52,6 +53,7 @@ export async function GET(
   ).catch((e: unknown) => console.error("[auto-lock]", e));
 
   const wishlistItems: WishlistItem[] = (child.wishlist ?? []).map(normalizeWishlistItem);
+  const allowanceInfo = await getChildAllowance(db, childId);
 
   return NextResponse.json({
     child: {
@@ -67,5 +69,9 @@ export async function GET(
     wishlistItems,
     wishlistIds: wishlistItems.map(w => w.toyId),
     isChristmasLocked: parent?.isChristmasLocked ?? false,
+    allowance: allowanceInfo?.allowance ?? null,
+    unlockedShare: allowanceInfo?.unlockedShare ?? 0,
+    kidBudgetPoints: allowanceInfo?.kidBudgetPts ?? 0,
+    hasPlan: allowanceInfo?.hasPlan ?? false,
   });
 }

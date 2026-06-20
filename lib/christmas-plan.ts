@@ -21,8 +21,37 @@ export interface ChristmasPlan {
   deadline: string | Date;
   parentPaidCents: number;
   communityCents: number;
+  /** Per-child share of the budget as a percentage (0–100), keyed by childId. */
+  splits?: Record<string, number>;
   createdAt?: string | Date;
   updatedAt?: string | Date;
+}
+
+/**
+ * Resolve each child's budget percentage. Children missing from `splits` (or when
+ * no splits are set) default to an even share, and the result always sums to ~100.
+ */
+export function normalizeSplits(
+  splits: Record<string, number> | undefined,
+  childIds: string[],
+): Record<string, number> {
+  if (childIds.length === 0) return {};
+  const even = 100 / childIds.length;
+  const raw: Record<string, number> = {};
+  for (const id of childIds) {
+    const v = splits?.[id];
+    raw[id] = typeof v === "number" && v >= 0 ? v : even;
+  }
+  const total = Object.values(raw).reduce((s, v) => s + v, 0);
+  if (total <= 0) {
+    const out: Record<string, number> = {};
+    for (const id of childIds) out[id] = even;
+    return out;
+  }
+  // Scale to sum to 100.
+  const out: Record<string, number> = {};
+  for (const id of childIds) out[id] = (raw[id] / total) * 100;
+  return out;
 }
 
 export interface PlanSummary {
@@ -38,6 +67,7 @@ export interface PlanSummary {
   nextDueDate: string | null;
   complete: boolean;
   budgetPoints: number; // budget expressed in Magic Points ($1 = 1 pt)
+  splits: Record<string, number> | null; // raw per-child % (null = even split)
 }
 
 /**
@@ -110,5 +140,6 @@ export function summarizePlan(plan: ChristmasPlan, now: Date = new Date()): Plan
     nextDueDate: nextDueDate ? nextDueDate.toISOString() : null,
     complete: remainingCents === 0,
     budgetPoints: Math.floor(plan.budgetCents / 100),
+    splits: plan.splits ?? null,
   };
 }

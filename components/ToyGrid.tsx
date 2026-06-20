@@ -11,7 +11,10 @@ interface Toy {
 
 interface ToyGridProps {
   toys: Toy[];
-  points: number;
+  /** Total spendable allowance (unlocked budget + earned points). */
+  allowance: number;
+  /** Sum of point costs of toys already on the wish list. */
+  wishlistTotal: number;
   isLocked: boolean;
   canShop: boolean;
   wishlistIds: string[];
@@ -19,7 +22,7 @@ interface ToyGridProps {
   onToggleWishlist: (toyId: string, add: boolean) => void;
 }
 
-export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, lockedInIds = [], onToggleWishlist }: ToyGridProps) {
+export default function ToyGrid({ toys, allowance, wishlistTotal, isLocked, canShop, wishlistIds, lockedInIds = [], onToggleWishlist }: ToyGridProps) {
   if (!canShop && !isLocked) {
     return (
       <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
@@ -39,8 +42,9 @@ export default function ToyGrid({ toys, points, isLocked, canShop, wishlistIds, 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {toys.map((toy) => {
-        const canAfford = points >= toy.price;
         const onList = wishlistIds.includes(toy.id);
+        // Adding this toy must keep the wish-list total within the allowance.
+        const canAfford = onList || wishlistTotal + toy.price <= allowance;
         const isLockedIn = lockedInIds.includes(toy.id);
 
         return (

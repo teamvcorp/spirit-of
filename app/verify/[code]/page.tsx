@@ -1,27 +1,37 @@
-import { confirmDeed } from "@/app/actions";
+import { getDb, ObjectId } from "@/lib/mongodb";
+import DeedVerify from "@/components/DeedVerify";
 
 export default async function NeighborVerify({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
+
+  const db = await getDb();
+  const deed = await db.collection("goodDeeds").findOne({ code });
+
+  let childName = "A child";
+  let alreadyConfirmed = false;
+  if (deed) {
+    alreadyConfirmed = !!deed.isConfirmed;
+    if (deed.childId && ObjectId.isValid(deed.childId)) {
+      const child = await db.collection("children").findOne(
+        { _id: new ObjectId(deed.childId) },
+        { projection: { name: 1 } },
+      );
+      if (child?.name) childName = child.name;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-emerald-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-4xl p-8 max-w-sm w-full text-center shadow-2xl">
-        <div className="w-16 h-16 bg-gold-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <span className="text-2xl">✨</span>
-        </div>
-        <h2 className="text-2xl font-serif mb-2">A Good Deed!</h2>
-        <p className="text-slate-600 mb-8">One of Santa's helpers assisted you. Verify this to grant them a Magic Point.</p>
-        
-        <form action={confirmDeed}>
-          <input type="hidden" name="code" value={code} />
-          <textarea 
-            name="note"
-            className="w-full bg-slate-50 border-none rounded-xl p-4 mb-4 text-slate-900 placeholder:text-slate-400"
-            placeholder="Leave a nice note..."
-          />
-          <button className="w-full bg-slate-900 text-white py-4 rounded-full font-bold hover:bg-emerald-700 transition-colors">
-            Confirm Deed
-          </button>
-        </form>
+      <div className="bg-white rounded-4xl p-8 max-w-sm w-full shadow-2xl">
+        {deed ? (
+          <DeedVerify code={code} childName={childName} alreadyConfirmed={alreadyConfirmed} />
+        ) : (
+          <div className="text-center">
+            <div className="text-4xl mb-4">🔍</div>
+            <h2 className="text-2xl font-serif mb-2">Code not found</h2>
+            <p className="text-slate-600">This deed code isn&apos;t valid. Double-check the link or card.</p>
+          </div>
+        )}
       </div>
     </div>
   );

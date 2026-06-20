@@ -33,6 +33,9 @@ export default function ChildDashboard() {
   const [isChristmasLocked, setIsChristmasLocked] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [allowance, setAllowance] = useState(0);
+  const [hasPlan, setHasPlan] = useState(false);
+  const [wishlistError, setWishlistError] = useState("");
 
   // PIN modal state
   const [showPinModal, setShowPinModal] = useState(false);
@@ -43,6 +46,7 @@ export default function ChildDashboard() {
   // Derived lists
   const wishlistIds = wishlistItems.map(w => w.toyId);
   const lockedInIds = wishlistItems.filter(w => w.lockedIn).map(w => w.toyId);
+  const wishlistTotal = toys.filter(t => wishlistIds.includes(t.id)).reduce((s, t) => s + t.price, 0);
 
   useEffect(() => {
     fetch(`/api/children/${childId}`)
@@ -57,6 +61,8 @@ export default function ChildDashboard() {
           setCanShop(data.canShopToday);
           setWishlistItems(data.wishlistItems ?? (data.wishlistIds ?? []).map((id: string) => ({ toyId: id, addedAt: new Date(0).toISOString(), lockedIn: false })));
           setIsChristmasLocked(data.isChristmasLocked ?? false);
+          setAllowance(data.allowance ?? 0);
+          setHasPlan(data.hasPlan ?? false);
         }
         setLoading(false);
       });
@@ -96,13 +102,20 @@ export default function ChildDashboard() {
   const handleToggleWishlist = async (toyId: string, add: boolean) => {
     if (isChristmasLocked) return;
     if (!add && lockedInIds.includes(toyId)) return; // can't remove locked items
+    setWishlistError("");
+    const snapshot = wishlistItems;
     // Optimistic update
     setWishlistItems((prev) =>
       add
         ? [...prev, { toyId, addedAt: new Date().toISOString(), lockedIn: false }]
         : prev.filter((w) => w.toyId !== toyId)
     );
-    await toggleWishlistItem(childId, toyId, add);
+    const res = await toggleWishlistItem(childId, toyId, add);
+    if (res?.error) {
+      setWishlistItems(snapshot); // revert
+      setWishlistError(res.error);
+      setTimeout(() => setWishlistError(""), 4500);
+    }
   };
 
   const handleLockItem = async (toyId: string) => {
@@ -126,6 +139,8 @@ export default function ChildDashboard() {
       setChild(childRes.child);
       setWishlistItems(childRes.wishlistItems ?? []);
       setIsChristmasLocked(childRes.isChristmasLocked ?? false);
+      setAllowance(childRes.allowance ?? 0);
+      setHasPlan(childRes.hasPlan ?? false);
     }
     if (toysRes?.toys) setToys(toysRes.toys);
   };
@@ -213,8 +228,8 @@ export default function ChildDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-xs font-bold text-crimson-600 uppercase tracking-widest">Magic Balance</p>
-            <p className="text-3xl font-light text-slate-900">{Math.round(child.magicPoints)} ✨</p>
+            <p className="text-xs font-bold text-crimson-600 uppercase tracking-widest">{hasPlan ? "Points to Spend" : "Magic Balance"}</p>
+            <p className="text-3xl font-light text-slate-900">{Math.round(hasPlan ? Math.max(0, allowance - wishlistTotal) : child.magicPoints)} ✨</p>
           </div>
           <button
             onClick={handleAdminLock}
@@ -269,12 +284,19 @@ export default function ChildDashboard() {
           )}
         </div>
 
+        {wishlistError && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-5 py-3 text-sm font-semibold text-center">
+            {wishlistError}
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {activeTab === "shop" ? (
             <motion.div key="shop" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <ToyGrid
                 toys={toys}
-                points={Math.round(child.magicPoints)}
+                allowance={Math.round(allowance)}
+                wishlistTotal={wishlistTotal}
                 isLocked={shopLocked}
                 canShop={canShop}
                 wishlistIds={wishlistIds}
