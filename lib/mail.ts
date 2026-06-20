@@ -17,6 +17,28 @@ const ORG_FOOTER_TEXT =
   "\n\n—\nSpirit of Santa is a program of Von Der Becke Academy Corp, a 501(c)(3) nonprofit (EIN 46-1005883). " +
   "You received this email because an account was created with this address at spiritofsanta.com.";
 
+export const sendVoteReminder = async (email: string, childNames: string[], domain: string) => {
+  const kids = childNames.length ? childNames.join(" & ") : "your kids";
+  const link = `${domain}/parent`;
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: "🎅 Time for today's Naughty-Nice vote",
+    text:
+      `A quick nudge to log a Naughty-Nice vote for ${kids}. Staying consistent keeps the magic going and the toy shop open!\n\nVote now: ${link}\n\n` +
+      `You're getting this because you turned on vote reminders — change or turn them off any time in your parent portal.`,
+    html: `
+      <div style="font-family:Georgia,serif;max-width:560px;margin:auto;padding:32px;">
+        <h1 style="color:#c0392b;font-size:23px;margin-bottom:8px;">Don't forget to vote today! 🎅</h1>
+        <p style="color:#555;line-height:1.6;">A quick nudge to log a Naughty-Nice vote for <strong>${kids}</strong>. Staying consistent keeps the magic going and the toy shop open.</p>
+        <a href="${link}" style="display:inline-block;margin:18px 0;background:#c0392b;color:#fff;text-decoration:none;padding:13px 26px;border-radius:9999px;font-weight:bold;">Cast today's vote</a>
+        <p style="color:#aaa;font-size:11px;line-height:1.6;">You're getting this because you turned on vote reminders. Change the frequency or turn them off any time in your parent portal.</p>
+        ${ORG_FOOTER_HTML}
+      </div>
+    `,
+  });
+};
+
 export const sendVerificationEmail = async (email: string, token: string, domain: string) => {
   const link = `${domain}/verify-email?token=${encodeURIComponent(token)}`;
   await resend.emails.send({

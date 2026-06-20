@@ -65,5 +65,6 @@ export async function GET() {
     shippingAddress: user.shippingAddress ?? '',
     referralCode: user.referralCode ?? null,
     christmasPlan,
+    voteReminder: user.voteReminder ?? 'off',
   });
 }

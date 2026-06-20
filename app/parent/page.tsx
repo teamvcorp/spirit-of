@@ -48,6 +48,8 @@ export default function ParentPortal() {
   const [planError, setPlanError] = useState("");
   const [splitDraft, setSplitDraft] = useState<Record<string, number>>({});
   const [savingSplit, setSavingSplit] = useState(false);
+  const [voteReminder, setVoteReminder] = useState<"off" | "daily" | "weekly">("off");
+  const [savingReminder, setSavingReminder] = useState(false);
   // Fill missed days
   const [fillingDays, setFillingDays] = useState<string | null>(null); // childId
   const [fillMode, setFillMode] = useState<'nice' | 'naughty' | 'half' | null>(null);
@@ -93,6 +95,7 @@ export default function ParentPortal() {
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
       setChristmasPlan(data.christmasPlan ?? null);
+      setVoteReminder(data.voteReminder ?? "off");
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -109,6 +112,7 @@ export default function ParentPortal() {
       setWalletBalance(data.walletBalance ?? 0);
       setIsChristmasLocked(data.isChristmasLocked ?? false);
       setChristmasPlan(data.christmasPlan ?? null);
+      setVoteReminder(data.voteReminder ?? "off");
       if (data.shippingAddress) setShippingAddress(data.shippingAddress);
       if (data.referralCode) setReferralCode(data.referralCode);
       if (!data.hasPin) setShowPinSetup(true);
@@ -202,6 +206,21 @@ export default function ParentPortal() {
     for (const k of kids) seed[k.id] = christmasPlan.splits?.[k.id] ?? even;
     setSplitDraft(seed);
   }, [christmasPlan, kids]);
+
+  const handleSetReminder = async (frequency: "off" | "daily" | "weekly") => {
+    const prev = voteReminder;
+    setVoteReminder(frequency); // optimistic
+    setSavingReminder(true);
+    try {
+      const r = await fetch("/api/vote-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ frequency }),
+      });
+      if (!r.ok) setVoteReminder(prev);
+    } catch { setVoteReminder(prev); }
+    setSavingReminder(false);
+  };
 
   const handleSaveSplit = async () => {
     setSavingSplit(true);
@@ -833,6 +852,29 @@ export default function ParentPortal() {
                     : "No button needed — on December 1 every list locks in for Santa, then resets on January 1 for the new year. Make sure your Christmas budget is funded before December 1. "}
                   Your wallet balance is applied automatically to cover the gifts, so you&apos;re never overcharged. On January 1 the wish lists, Magic Points, and the Naughty-Nice meter all start fresh for the new year &mdash; only your wallet balance carries over.
                 </p>
+              </div>
+
+              {/* Vote reminders */}
+              <div className="mb-8 bg-white border border-slate-100 rounded-3xl px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Mail size={18} className="text-crimson-500 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-slate-700 text-sm">Email me to vote</p>
+                    <p className="text-xs text-slate-400">A friendly nudge to keep the Naughty-Nice meter moving and stay connected.</p>
+                  </div>
+                </div>
+                <div className="flex gap-1 bg-slate-50 rounded-full p-1 shrink-0">
+                  {(["off", "daily", "weekly"] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => handleSetReminder(f)}
+                      disabled={savingReminder}
+                      className={`px-4 py-2 rounded-full text-xs font-bold capitalize transition disabled:opacity-60 ${voteReminder === f ? "bg-crimson-600 text-white shadow" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {loading ? (
