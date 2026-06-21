@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import AddChildModal from "@/components/AddChildModal";
+import { isUsState } from "@/lib/us-geo";
 import StripePaymentModal from "@/components/StripePaymentModal";
 import { submitDailyVote, setParentPin, sendMagicPoints, fillMissedDays } from "@/app/actions";
 import { getMeterStats, getYearStart } from "@/lib/santa-logic";
@@ -339,7 +340,7 @@ export default function ParentPortal() {
     if (!addrFields.fullName.trim()) e.fullName = 'Full name is required';
     if (!addrFields.street.trim()) e.street = 'Street address is required';
     if (!addrFields.city.trim()) e.city = 'City is required';
-    if (!/^[A-Z]{2}$/i.test(addrFields.state.trim())) e.state = 'Enter a 2-letter state code';
+    if (!isUsState(addrFields.state.trim())) e.state = 'Enter a valid US state or territory code';
     if (!/^\d{5}(-\d{4})?$/.test(addrFields.zip.trim())) e.zip = 'Enter a valid ZIP code';
     setAddrErrors(e);
     return Object.keys(e).length === 0;

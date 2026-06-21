@@ -3,6 +3,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { sendFinalList } from '@/lib/mail';
+import { isUsShippingAddress, US_ONLY_MESSAGE } from '@/lib/us-geo';
 
 // Helper: normalize a raw wishlist entry to a toy ID string
 function toToyId(item: any): string {
@@ -64,6 +65,9 @@ export async function POST(req: Request) {
   const { shippingAddress } = await req.json();
   if (!shippingAddress?.trim()) {
     return NextResponse.json({ error: 'Shipping address is required' }, { status: 400 });
+  }
+  if (!isUsShippingAddress(shippingAddress)) {
+    return NextResponse.json({ error: US_ONLY_MESSAGE }, { status: 400 });
   }
 
   const db = await getDb();

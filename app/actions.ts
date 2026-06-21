@@ -9,6 +9,8 @@ import { getChildAllowance } from "@/lib/allowance";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getYearStart } from "@/lib/santa-logic";
+import { headers } from "next/headers";
+import { countryAllowed, ipCountryFromHeaders, US_ONLY_MESSAGE } from "@/lib/us-geo";
 
 export async function toggleWishlistItem(childId: string, toyId: string, add: boolean) {
   if (!ObjectId.isValid(childId) || !ObjectId.isValid(toyId)) return { error: "Invalid item." };
@@ -125,6 +127,12 @@ export async function registerUser(
 ) {
   if (!verifyCaptcha(captchaToken, captchaAnswer)) {
     return { error: "Please solve the math question to prove you're human.", captchaFailed: true };
+  }
+
+  // Geofence: refuse sign-up from a positively-detected non-US country. Unknown
+  // location falls through and is caught later by the shipping-address check.
+  if (!countryAllowed(ipCountryFromHeaders(await headers()))) {
+    return { error: US_ONLY_MESSAGE };
   }
 
   const normalized = (email ?? "").trim().toLowerCase();

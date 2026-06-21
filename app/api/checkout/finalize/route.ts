@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { logError } from '@/lib/log-error';
+import { isUsShippingAddress, US_ONLY_MESSAGE } from '@/lib/us-geo';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
     }
     if (!shippingAddress.trim()) {
       return NextResponse.json({ error: 'Shipping address is required' }, { status: 400 });
+    }
+    if (!isUsShippingAddress(shippingAddress)) {
+      return NextResponse.json({ error: US_ONLY_MESSAGE }, { status: 400 });
     }
 
     const db = await getDb();
